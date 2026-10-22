@@ -1,0 +1,18 @@
+# Operating system files
+.DS_Store
+._*
+
+# Local credentials and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Installed dependencies and local tool output
+node_modules/
+__pycache__/
+*.pyc
+.cache/
+.archify/
+*.log
