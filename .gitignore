@@ -16,3 +16,15 @@ __pycache__/
 .cache/
 .archify/
 *.log
+
+# Private tool data
+.credentials.yaml
+auth.json
+service.json
+cordis.local.yml
+cordis.local.yaml
+sessions/
+attachments/
+cache/
+state/
+*.ndjson

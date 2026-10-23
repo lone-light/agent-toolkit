@@ -1,0 +1,49 @@
+- id: ui-settings-account
+  name: "@deepseek-ai/dsh-client-ui-settings-account"
+  config:
+    version: 1
+    process: detailed
+    completion: completed
+    usage: detailed
+    developerTools: true
+- id: ui-chat
+  name: "@deepseek-ai/dsh-client-ui-chat"
+  config:
+    transcriptView: detailed
+    performanceUsage: detailed
+- id: ui-settings
+  name: "@deepseek-ai/dsh-client-ui-settings"
+  config:
+    enabled: true
+- id: plugin-market
+  name: "@deepseek-ai/dsh-plugin-market"
+  config:
+    indexes:
+      - https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json
+- id: better-sidebar
+  name: dsh-better-sidebar
+  config:
+    customCss: ""
+- id: wallpaper-engine
+  disabled: true
+- id: dsh-context
+  disabled: true
+- id: codex-subscription
+  name: dsh-codex-subscription
+  config:
+    disabledModels:
+      - gpt-6-sol
+      - gpt-5.6-sol
+      - gpt-5.6-luna
+      - gpt-5.6-terra
+      - gpt-reserve
+    remoteControl: off
+    quickQuotaMode: percent
+    speedMode: standard
+    outputVerbosity: default
+    connectors: read
+    contextMode: standard
+    imageModel: gpt-image-2.5-sunburst
+    imageQuality: max
+- id: ui-skin-maid-atelier
+  disabled: true
