@@ -16,6 +16,10 @@ __pycache__/
 .cache/
 *.log
 
+# Local editor files
+/.idea/
+/.vscode/
+
 # Private tool data
 .credentials.yaml
 auth.json
