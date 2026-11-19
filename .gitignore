@@ -14,7 +14,6 @@ node_modules/
 __pycache__/
 *.pyc
 .cache/
-.archify/
 *.log
 
 # Private tool data

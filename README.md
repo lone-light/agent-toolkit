@@ -9,7 +9,6 @@ Agent 规则、Skills 与工具配置集合。
 | [instructions/AGENTS.md](instructions/AGENTS.md) | 通用全局规则 |
 | [skills/engineering-workflow](skills/engineering-workflow/) | 工程开发工作流 |
 | [skills/grilling](skills/grilling/) | 需求澄清与追问 |
-| [skills/archify](skills/archify/) | 架构图、流程图等可视化 |
 | [opencode](opencode/) | OpenCode TUI 配置与界面插件 |
 | [dsh](dsh/) | DSH 插件清单与界面偏好 |
 
