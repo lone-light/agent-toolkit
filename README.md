@@ -17,6 +17,7 @@ Agent 规则、Skills、代码检查规则与工具配置集合。
 | [skills/apifox-test-scenario](skills/apifox-test-scenario/) | 测试场景编排与变量衔接 |
 | [skills/apifox-test-automation](skills/apifox-test-automation/) | 测试套件、执行、报告与 CI |
 | [skills/apifox-workflow-api-lifecycle](skills/apifox-workflow-api-lifecycle/) | API 设计、Mock、测试与文档工作流 |
+| [checkstyle](checkstyle/) | Java Checkstyle 规则、展示样例和回归测试 |
 | [lonelight-checks](lonelight-checks/) | Java 通用规则、项目约定和测试样例 |
 | [opencode](opencode/) | OpenCode TUI 配置与界面插件 |
 | [dsh](dsh/) | DSH 插件清单与界面偏好 |
