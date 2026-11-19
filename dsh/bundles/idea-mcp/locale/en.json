@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "IntelliJ IDEA MCP",
+    "description": "Open a project in IntelliJ IDEA and select Enable MCP Server under Settings → AI → MCP Server. Once connected, DSH sessions can use the tools IDEA exposes, such as file inspections and code navigation. To disconnect, disable this bundle in Plugins."
+  }
+}

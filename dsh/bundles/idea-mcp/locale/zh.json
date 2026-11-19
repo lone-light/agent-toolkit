@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "IntelliJ IDEA MCP",
+    "description": "在 IDEA 中打开项目，到 Settings → AI → MCP Server 勾选 Enable MCP Server。连通后，可以在 DSH 会话中调用 IDEA 当前开放的工具，例如检查文件或查询代码。在 DSH 的 Plugins 页面禁用此配置包即可断开。"
+  }
+}

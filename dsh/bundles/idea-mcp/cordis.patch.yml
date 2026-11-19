@@ -1,0 +1,9 @@
+- insert:
+    - id: intellij-idea-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: idea
+        transport: streamable-http
+        url: http://127.0.0.1:64342/stream
+        startupTimeoutMs: 5000
+        failOnStartupError: false

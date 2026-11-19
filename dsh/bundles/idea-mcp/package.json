@@ -1,0 +1,17 @@
+{
+  "name": "@local/dsh-idea-mcp",
+  "version": "1.0.0",
+  "description": "Connect DeepSeek Harness to the local IntelliJ IDEA MCP server.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["cordis.patch.yml", "locale/*.json", "icon.svg", "README.md"],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
