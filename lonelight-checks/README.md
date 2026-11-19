@@ -8,8 +8,8 @@ Java 源码检查规则 **0.1.0**。检查器用 JDK **21** 构建，使用 Chec
 
 | 文件 | 用途 | 检查模块 | error | warning | info |
 | --- | --- | --- | --- | --- | --- |
-| [lonelight-base.xml](config/lonelight-base.xml) | 通用 Java 风格和常见错误检查 | 94 | 16 | 72 | 6 |
-| [lonelight-project.xml](config/lonelight-project.xml) | 命名、文档、分层和接口注解约定 | 17 | 3 | 13 | 1 |
+| [lonelight-base.xml](config/lonelight-base.xml) | 通用 Java 风格和常见错误检查 | 98 | 16 | 75 | 7 |
+| [lonelight-project.xml](config/lonelight-project.xml) | 命名、文档、依赖注入、分层和接口约定 | 21 | 3 | 17 | 1 |
 
 两份配置共用一个检查器 JAR，可以单独或同时启用。严重等级由 XML 配置。
 
@@ -39,7 +39,11 @@ lonelight-checks/
 mvn clean verify
 ```
 
-产物为 `target/lonelight-checks-0.1.0.jar`，包含自定义检查、过滤器和提示文本。Checkstyle 引擎由 IDEA 插件或命令行提供。自动测试核对全部 111 个检查模块的样例、严重等级、重复诊断和 JAR 加载。
+产物为 `target/lonelight-checks-0.1.0.jar`，包含自定义检查、过滤器和提示文本。Checkstyle 引擎由 IDEA 插件或命令行提供。
+
+自动测试检查规则行为和重复诊断。打包验证用生成的 JAR 扫描自动测试资源及可编译样例，核对全部 119 个模块的预期诊断及其等级。
+
+打包测试还检查合规样例存在且无诊断，并确认自定义规则可以读取提示文本。
 
 ## 在 IDEA 导入
 
@@ -51,7 +55,9 @@ mvn clean verify
 
 按 XML 等级显示结果时，取消勾选 `Treat Checkstyle errors as warnings`。扫描测试源码时选择 `Only Java sources (including tests)`。
 
-如果验证 XML 时找不到 `lonelight.checks.*`，先确认 JAR 路径存在、项目已被 IDEA 标为受信任，并先应用第三方 JAR 设置，再添加 XML。[CheckStyle-IDEA 官方说明](https://github.com/jshiell/checkstyle-idea#configuration)
+检查规则实现和测试代码时，可分别选中 `src/main/java` 和 `src/test/java` 扫描。测试资源里的 Java 反例用于验证规则行为。
+
+如果验证 XML 时找不到 `lonelight.checks.*`，先确认 JAR 路径存在、项目已被 IDEA 标为受信任。更新 JAR 后，在 CheckStyle 工具窗口执行 `Reload Rules Files` 再扫描。[CheckStyle-IDEA 官方说明](https://github.com/jshiell/checkstyle-idea#configuration)
 
 ## 手动扫描样例
 

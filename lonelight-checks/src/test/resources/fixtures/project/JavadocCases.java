@@ -1,4 +1,4 @@
-// 检查：MultilineJavadocCheck, MethodJavadocPeriodCheck, MethodJavadocNumberingCheck, FieldJavadocCheck
+// 检查：MultilineJavadocCheck, MethodJavadocPeriodCheck, MethodJavadocNumberingCheck, FieldJavadocCheck, TypeJavadocCheck
 package project;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;

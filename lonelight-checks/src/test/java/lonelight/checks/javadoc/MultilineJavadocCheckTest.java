@@ -2,12 +2,15 @@ package lonelight.checks.javadoc;
 
 import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import com.puppycrawl.tools.checkstyle.api.SeverityLevel;
-import java.nio.file.Path;
-import java.util.List;
 import lonelight.checks.CheckTestSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 验证 Javadoc 的展开格式检查
@@ -16,14 +19,14 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MultilineJavadocCheckTest {
     @TempDir
-    Path directory;
+    Path directoryPath;
 
     /**
      * 验证紧凑 Javadoc 会报告且普通注释保持合规
      */
     @Test
-    void detectsCompactDocumentationButLeavesOtherCommentsAlone() throws Exception {
-        Path file = CheckTestSupport.write(directory, "Example.java", """
+    void scan_compactJavadoc_reportsOnlyDocumentation() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
                 /** 类型说明 */
                 interface Example {
                     /** 最大容量 */
@@ -45,7 +48,7 @@ class MultilineJavadocCheckTest {
                     void reset();
                 }
                 """);
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), file).stream()
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), filePath).stream()
                 .filter(event -> CheckTestSupport.matches(event, "MultilineJavadoc")).toList();
         assertEquals(List.of(1, 3, 5, 7, 17), events.stream().map(AuditEvent::getLine).toList());
         assertTrue(events.stream().allMatch(event -> event.getSeverityLevel() == SeverityLevel.WARNING));

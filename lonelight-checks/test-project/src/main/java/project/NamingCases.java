@@ -1,4 +1,4 @@
-// 检查：VariableTypeNameCheck, BooleanFieldNameCheck
+// 检查：VariableTypeNameCheck
 
 package project;
 
@@ -16,11 +16,11 @@ class NamingCases {
     OrderShape targetOrderShape;
     ObjectMapper mapper;
 
-    void naming(OrderShape value, String text, List<OrderShape> orders) {
+    String naming(OrderShape value, String text, List<OrderShape> orders) {
         OrderShape current = value;
         var inferred = current;
         OrderShape[] items = {inferred};
-        System.out.println(text + orders + items.length);
+        return text + orders + items.length;
     }
 
     record OrderShape(boolean isAvailable, Boolean enabled) { }

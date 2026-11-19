@@ -13,7 +13,7 @@ class FieldJavadocCheckTest extends CustomCheckTest {
      * 验证字段说明与隐藏标记的合规边界
      */
     @Test
-    void acceptsProseAndExplicitHiddenOrDocumentedFields() throws Exception {
+    void scan_documentedAndHiddenFields_acceptsExemptFields() throws Exception {
         verify(FieldJavadocCheck.class, """
                 import com.fasterxml.jackson.annotation.JsonIgnore;
                 import io.swagger.v3.oas.annotations.media.Schema;

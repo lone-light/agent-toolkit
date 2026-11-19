@@ -2,13 +2,15 @@ package lonelight.checks.imports;
 
 import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import com.puppycrawl.tools.checkstyle.api.SeverityLevel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 import lonelight.checks.CheckTestSupport;
 import lonelight.checks.FixtureCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -20,13 +22,13 @@ class IdeaStyleChecksTest {
     private static final Path BASE_EXAMPLES = FixtureCatalog.directory("base");
 
     @TempDir
-    Path directory;
+    Path directoryPath;
 
     /**
      * 验证 IDEA 默认导入空行及 java 与 javax 的分组
      */
     @Test
-    void checksDefaultImportSpacingWithoutConfusingJavaAndJavax() throws Exception {
+    void scan_defaultImportGroups_appliesIdeaSpacing() throws Exception {
         String valid = """
                 import app.Order;
 
@@ -55,7 +57,7 @@ class IdeaStyleChecksTest {
      * 验证全限定注解在无命名冲突时才提示简写
      */
     @Test
-    void flagsLongAnnotationNamesWithoutImposingADifferentImport() throws Exception {
+    void scan_qualifiedAnnotations_reportsSafeShortNames() throws Exception {
         String shortNames = """
                 import jakarta.validation.constraints.NotNull;
                 class Example {
@@ -123,13 +125,13 @@ class IdeaStyleChecksTest {
      * 提取目标规则报告警告的行号
      *
      * @param input 待扫描的源码
-     * @param rule 要筛选的检查名称
+     * @param rule  要筛选的检查名称
      * @return 警告所在的行号
      * @throws Exception 样例写入或扫描失败时
      */
     private List<Integer> findings(String input, String rule) throws Exception {
-        Path source = CheckTestSupport.write(directory, "Example.java", input);
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), source).stream()
+        Path sourcePath = CheckTestSupport.write(directoryPath, "Example.java", input);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), sourcePath).stream()
                 .filter(event -> CheckTestSupport.matches(event, rule)).toList();
         assertTrue(events.stream().allMatch(event -> event.getSeverityLevel() == SeverityLevel.WARNING));
         return events.stream().map(AuditEvent::getLine).toList();

@@ -5,15 +5,13 @@ import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
+import lonelight.checks.JavaSource;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
-import lonelight.checks.JavaSource;
 
 /**
  * 按类型引用查找同一源码根目录下的模型
@@ -21,15 +19,26 @@ import lonelight.checks.JavaSource;
  * @author lonelight
  */
 final class ApiSourceModels {
+    /**
+     * 按源文件路径缓存的模型索引
+     */
     private final Map<Path, Map<String, Model>> files = new HashMap<>();
+
+    /**
+     * 用于查找同模块类型的源码根目录
+     */
     private final Path sourceRoot;
+
+    /**
+     * 当前源码文件声明的模型
+     */
     private final Map<String, Model> currentModels;
 
     /**
      * 为当前文件建立接口模型索引
      *
-     * @param file 当前文件路径
-     * @param root 当前文件的语法树根节点
+     * @param file   当前文件路径
+     * @param root   当前文件的语法树根节点
      * @param source 当前文件的名称索引
      */
     ApiSourceModels(Path file, DetailAST root, JavaSource source) {
@@ -42,7 +51,7 @@ final class ApiSourceModels {
      * 按当前声明的上下文查找模型源码
      *
      * @param written 源码中的类型名
-     * @param source 引用所在文件的名称索引
+     * @param source  引用所在文件的名称索引
      * @param context 类型引用所在的声明
      * @return 解析到的模型，缺失或有歧义时为 null
      */
@@ -75,6 +84,57 @@ final class ApiSourceModels {
     }
 
     /**
+     * 解析类型表达式中的模型及泛型实参
+     *
+     * @param typeDetailAST    类型表达式节点
+     * @param javaSource       声明所在文件的名称索引
+     * @param contextDetailAST 类型引用所在的声明
+     * @return 按引用顺序排列的模型
+     */
+    Set<Model> referenced(DetailAST typeDetailAST, JavaSource javaSource, DetailAST contextDetailAST) {
+        Set<Model> result = new LinkedHashSet<>();
+        typeNames(typeDetailAST, name -> {
+            if (!isTypeParameter(contextDetailAST, name)) {
+                Model model = find(name, javaSource, contextDetailAST);
+                if (model != null) {
+                    result.add(model);
+                }
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 判断类型名是否引用当前或外层声明的泛型参数
+     *
+     * @param contextDetailAST 类型引用所在的声明
+     * @param name             待匹配的类型名
+     * @return 由泛型声明提供时为 true
+     */
+    static boolean isTypeParameter(DetailAST contextDetailAST, String name) {
+        for (DetailAST ownerDetailAST = contextDetailAST; ownerDetailAST != null; ownerDetailAST = ownerDetailAST.getParent()) {
+            DetailAST parametersDetailAST = ownerDetailAST.findFirstToken(TokenTypes.TYPE_PARAMETERS);
+            if (JavaSource.descendants(parametersDetailAST, TokenTypes.TYPE_PARAMETER).stream()
+                    .anyMatch(parameter -> JavaSource.declarationName(parameter).getText().equals(name))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 提取类型的直接成员和 record 组件
+     *
+     * @param typeDetailAST 类型声明节点
+     * @return 按源码顺序排列的成员声明
+     */
+    static List<DetailAST> members(DetailAST typeDetailAST) {
+        var body = typeDetailAST.findFirstToken(typeDetailAST.getType() == TokenTypes.RECORD_DEF
+                ? TokenTypes.RECORD_COMPONENTS : TokenTypes.OBJBLOCK);
+        return JavaSource.children(body);
+    }
+
+    /**
      * 按全限定名查找当前文件或同一源码根下的模型
      *
      * @param name 模型的全限定名
@@ -85,7 +145,8 @@ final class ApiSourceModels {
         if (current != null || sourceRoot == null) {
             return current;
         }
-        for (String prefix = name; !prefix.isEmpty(); ) {
+        String prefix = name;
+        while (!prefix.isEmpty()) {
             Path file = sourceRoot.resolve(prefix.replace('.', '/') + ".java");
             Model model = files.computeIfAbsent(file, ApiSourceModels::read).get(name);
             if (model != null) {
@@ -118,7 +179,7 @@ final class ApiSourceModels {
     /**
      * 从文件路径和包名推算源码根目录
      *
-     * @param file 当前源码文件路径
+     * @param file        当前源码文件路径
      * @param packageName 文件声明的包名
      * @return 源码根目录，路径与包名不匹配时为 null
      */
@@ -140,7 +201,7 @@ final class ApiSourceModels {
     /**
      * 索引源码中的顶层和嵌套模型
      *
-     * @param root 当前文件的语法树根节点
+     * @param root   当前文件的语法树根节点
      * @param source 当前文件的名称索引
      * @return 按全限定名索引的模型声明
      */
@@ -159,7 +220,7 @@ final class ApiSourceModels {
     /**
      * 收集同级节点及其嵌套类型
      *
-     * @param node 首个同级节点
+     * @param node   首个同级节点
      * @param source 当前文件的名称索引
      * @param result 模型索引
      */
@@ -172,13 +233,14 @@ final class ApiSourceModels {
     /**
      * 将当前类型及其嵌套声明加入模型索引
      *
-     * @param node 待识别的声明节点
+     * @param node   待识别的声明节点
      * @param source 当前文件的名称索引
      * @param result 模型索引
      */
     private static void addDeclaration(DetailAST node, JavaSource source, Map<String, Model> result) {
         switch (node.getType()) {
-            case TokenTypes.CLASS_DEF, TokenTypes.RECORD_DEF, TokenTypes.ENUM_DEF, TokenTypes.INTERFACE_DEF -> {
+            case TokenTypes.CLASS_DEF, TokenTypes.RECORD_DEF, TokenTypes.ENUM_DEF, TokenTypes.INTERFACE_DEF,
+                 TokenTypes.ANNOTATION_DEF -> {
                 String name = qualifiedName(source.packageName(), node);
                 result.put(name, new Model(name, node, source));
                 var members = node.findFirstToken(TokenTypes.OBJBLOCK);
@@ -186,14 +248,16 @@ final class ApiSourceModels {
                     addDeclarations(members.getFirstChild(), source, result);
                 }
             }
-            default -> { }
+            default -> {
+                // 只有类型声明才加入模型索引
+            }
         }
     }
 
     /**
      * 拼接包名和各层外部类型名
      *
-     * @param pkg 包名
+     * @param pkg         包名
      * @param declaration 类型声明节点
      * @return 当前类型的全限定名
      */
@@ -207,7 +271,7 @@ final class ApiSourceModels {
     /**
      * 遍历类型引用及其泛型实参
      *
-     * @param node 类型子树根节点，为 null 时跳过
+     * @param node     类型子树根节点，为 null 时跳过
      * @param consumer 接收源码类型名的回调
      */
     static void typeNames(DetailAST node, Consumer<String> consumer) {
@@ -235,7 +299,7 @@ final class ApiSourceModels {
     /**
      * 读取限定类型各层的泛型实参
      *
-     * @param node 限定类型子树节点
+     * @param node     限定类型子树节点
      * @param consumer 接收源码类型名的回调
      */
     private static void typeArguments(DetailAST node, Consumer<String> consumer) {
@@ -251,10 +315,11 @@ final class ApiSourceModels {
     /**
      * 保存模型声明和所在文件的名称索引
      *
-     * @param name 模型的完整类型名称
-     * @param tree 模型的类型声明节点
+     * @param name   模型的完整类型名称
+     * @param tree   模型的类型声明节点
      * @param source 模型所在文件的名称解析信息
      * @author lonelight
      */
-    record Model(String name, DetailAST tree, JavaSource source) { }
+    record Model(String name, DetailAST tree, JavaSource source) {
+    }
 }

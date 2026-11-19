@@ -2,10 +2,11 @@ package lonelight.checks.framework;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.util.Set;
-import java.util.regex.Pattern;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
+
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 检查 Controller 和 Service 声明中的禁止依赖
@@ -15,8 +16,20 @@ import lonelight.checks.RuleCheck;
 public final class LayerDependencyCheck extends RuleCheck {
     private static final Set<Integer> DECLARATIONS = Set.of(TokenTypes.METHOD_DEF, TokenTypes.VARIABLE_DEF,
             TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF);
+
+    /**
+     * 控制器中受限类型的全限定名模式
+     */
     private Pattern controllerForbidden = Pattern.compile(".*\\.mapper\\..*");
+
+    /**
+     * 服务中受限类型的全限定名模式
+     */
     private Pattern serviceForbidden = Pattern.compile("(?:jakarta|javax)\\.servlet\\..*|org\\.springframework\\.http\\.ResponseEntity");
+
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -46,7 +59,7 @@ public final class LayerDependencyCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.TYPE};
+        return new int[]{TokenTypes.TYPE};
     }
 
     /**

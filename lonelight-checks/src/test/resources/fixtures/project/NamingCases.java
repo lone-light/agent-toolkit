@@ -1,4 +1,4 @@
-// 检查：VariableTypeNameCheck, TestMethodNameCheck, BooleanFieldNameCheck
+// 检查：VariableTypeNameCheck, TestMethodNameCheck
 package project;
 
 import com.fasterxml.jackson.databind.ObjectMapper;

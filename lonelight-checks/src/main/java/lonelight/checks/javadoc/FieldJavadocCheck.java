@@ -6,12 +6,17 @@ import com.puppycrawl.tools.checkstyle.utils.JavadocUtil;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
 
+import java.util.regex.Pattern;
+
 /**
  * 检查实例字段和 record 组件是否有说明
  *
  * @author lonelight
  */
 public final class FieldJavadocCheck extends RuleCheck {
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -21,7 +26,7 @@ public final class FieldJavadocCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.VARIABLE_DEF, TokenTypes.RECORD_COMPONENT_DEF};
+        return new int[]{TokenTypes.VARIABLE_DEF, TokenTypes.RECORD_COMPONENT_DEF};
     }
 
     /**
@@ -47,44 +52,69 @@ public final class FieldJavadocCheck extends RuleCheck {
     /**
      * 报告缺少说明且未显式隐藏的字段或组件
      *
-     * @param node 待检查的变量声明或 record 组件
+     * @param nodeDetailAST 待检查的变量声明或 record 组件
      */
     @Override
-    public void visitToken(DetailAST node) {
-        if (!JavaSource.isInstanceFieldOrComponent(node)) {
-            return;
+    public void visitToken(DetailAST nodeDetailAST) {
+        if (JavaSource.isInstanceFieldOrComponent(nodeDetailAST)
+                && !hasRecordDescription(nodeDetailAST)
+                && JavaSource.annotations(nodeDetailAST).stream().noneMatch(this::documentsOrHides)
+                && !hasFieldJavadoc(nodeDetailAST)) {
+            log(JavaSource.declarationName(nodeDetailAST), "field.javadoc");
         }
-        DetailAST name = JavaSource.declarationName(node);
-        if (node.getType() == TokenTypes.RECORD_COMPONENT_DEF) {
-            DetailAST owner = JavaSource.enclosingType(node);
-            DetailAST typeDocumentation = owner == null ? null : JavadocUtil.getAttachedJavadocComment(owner);
-            if (typeDocumentation != null && java.util.regex.Pattern.compile("(?m)@param\\s+"
-                    + java.util.regex.Pattern.quote(name.getText()) + "\\s+[^\\s*]+")
-                    .matcher(JavadocUtil.getJavadocCommentContent(typeDocumentation)).find()) {
-                return;
-            }
+    }
+
+    /**
+     * 检查 record 类型的 Javadoc 是否说明了当前组件
+     *
+     * @param nodeDetailAST 待检查的声明节点
+     * @return 存在同名有效参数说明时为 true
+     */
+    private static boolean hasRecordDescription(DetailAST nodeDetailAST) {
+        if (nodeDetailAST.getType() != TokenTypes.RECORD_COMPONENT_DEF) {
+            return false;
         }
-        for (DetailAST annotation : JavaSource.annotations(node)) {
-            if (source.isType(JavaSource.annotationName(annotation), "com.fasterxml.jackson.annotation.JsonIgnore")) {
-                DetailAST value = JavaSource.attribute(annotation, "value");
-                if (value == null || value.findFirstToken(TokenTypes.LITERAL_TRUE) != null) {
-                    return;
-                }
-            }
-            if (source.isType(JavaSource.annotationName(annotation), "io.swagger.v3.oas.annotations.media.Schema")) {
-                DetailAST hidden = JavaSource.attribute(annotation, "hidden");
-                DetailAST descriptionValue = JavaSource.attribute(annotation, "description");
-                String description = JavaSource.literalText(descriptionValue);
-                if (hidden != null && hidden.findFirstToken(TokenTypes.LITERAL_TRUE) != null
-                        || descriptionValue != null && (description == null || !description.isBlank())) {
-                    return;
-                }
-            }
+        var owner = JavaSource.enclosingType(nodeDetailAST);
+        var documentation = owner == null ? null : JavadocUtil.getAttachedJavadocComment(owner);
+        if (documentation == null) {
+            return false;
         }
-        var documentation = JavadocUtil.getAttachedJavadocComment(node);
-        if (documentation == null || JavadocUtil.getJavadocCommentContent(documentation)
-                .replaceAll("/\\*\\*|\\*/|(?m)^\\s*\\*", "").isBlank()) {
-            log(name, "field.javadoc");
+        String name = JavaSource.declarationName(nodeDetailAST).getText();
+        return Pattern.compile("@param\\s+" + Pattern.quote(name) + "\\s+[^\\s*]+")
+                .matcher(JavadocUtil.getJavadocCommentContent(documentation)).find();
+    }
+
+    /**
+     * 判断字段注解是否提供说明或将字段隐藏
+     *
+     * @param annotationDetailAST 字段注解
+     * @return 注解提供有效说明或隐藏字段时为 true
+     */
+    private boolean documentsOrHides(DetailAST annotationDetailAST) {
+        String name = JavaSource.annotationName(annotationDetailAST);
+        if (source.isType(name, "com.fasterxml.jackson.annotation.JsonIgnore")) {
+            var value = JavaSource.attribute(annotationDetailAST, "value");
+            return value == null || value.findFirstToken(TokenTypes.LITERAL_TRUE) != null;
         }
+        if (!source.isType(name, "io.swagger.v3.oas.annotations.media.Schema")) {
+            return false;
+        }
+        var hidden = JavaSource.attribute(annotationDetailAST, "hidden");
+        var descriptionValue = JavaSource.attribute(annotationDetailAST, "description");
+        String description = JavaSource.literalText(descriptionValue);
+        return hidden != null && hidden.findFirstToken(TokenTypes.LITERAL_TRUE) != null
+                || descriptionValue != null && (description == null || !description.isBlank());
+    }
+
+    /**
+     * 判断字段是否有非空 Javadoc
+     *
+     * @param nodeDetailAST 待检查的字段
+     * @return Javadoc 中包含内容时为 true
+     */
+    private static boolean hasFieldJavadoc(DetailAST nodeDetailAST) {
+        var documentation = JavadocUtil.getAttachedJavadocComment(nodeDetailAST);
+        return documentation != null && !JavadocUtil.getJavadocCommentContent(documentation)
+                .replaceAll("/\\*\\*|\\*/|(?m)^\\s*\\*", "").isBlank();
     }
 }

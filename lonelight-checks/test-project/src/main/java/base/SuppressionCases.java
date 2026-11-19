@@ -5,15 +5,18 @@ package base;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.stereotype.Component;
 
 /**
  * 对照框架注入和显式豁免的检查范围
  *
  * @author lonelight
  */
+@Component
 class SuppressionCases {
     @Autowired
-    private OrderSummary injectedSummary;
+    private ApplicationContext applicationContext;
 
     @JsonProperty
     private String serializedNumber;

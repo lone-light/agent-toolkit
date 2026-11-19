@@ -18,7 +18,9 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
      * 完成无需附加配置的过滤器初始化
      */
     @Override
-    protected void finishLocalSetup() { }
+    protected void finishLocalSetup() {
+        // 方法注解在扫描时读取，无需预先加载
+    }
 
     /**
      * 按方法所用的框架注解过滤对应诊断
@@ -47,11 +49,11 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
     }
 
     /**
-     * 判断诊断位置是否落在两个节点之间
+     * 判断两个节点限定的范围是否包含诊断位置
      *
      * @param event 待定位的扫描事件
      * @param start 范围起点，包含该位置
-     * @param end 范围终点，包含该位置
+     * @param end   范围终点，包含该位置
      * @return 位置在范围内时为 true
      */
     private static boolean contains(TreeWalkerAuditEvent event, DetailAST start, DetailAST end) {
@@ -64,9 +66,9 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
     /**
      * 判断框架方法是否适用当前规则的豁免
      *
-     * @param method 待判断的方法声明
-     * @param root 当前文件的语法树根节点
-     * @param naming 当前诊断是否来自方法命名检查
+     * @param method  待判断的方法声明
+     * @param root    当前文件的语法树根节点
+     * @param naming  当前诊断是否来自方法命名检查
      * @param missing 当前诊断是否来自缺少 Javadoc 检查
      * @return 可以豁免时为 true
      */

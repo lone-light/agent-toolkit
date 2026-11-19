@@ -4,6 +4,7 @@ import lonelight.checks.CheckTestSupport;
 import lonelight.checks.CustomCheckTest;
 import lonelight.checks.FixtureCatalog;
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -16,7 +17,7 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
      * 验证属性缺失、空白值和注解身份的判定
      */
     @Test
-    void checksPresenceBlankEscapesConstantsAndCanonicalIdentity() throws Exception {
+    void scan_annotationAttributes_reportsMissingOrBlankValues() throws Exception {
         String[] options = {"attributes", "jakarta.validation.constraints.NotNull=message,app.Log=value"};
         verify(AnnotationAttributeCheck.class, "class Example { @jakarta.validation.constraints.NotNull String value; }", 1, options);
         verify(AnnotationAttributeCheck.class, "import jakarta.validation.constraints.*; class Example { @NotNull(message = \" \\t\") String value; }", 1, options);
@@ -32,7 +33,7 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
      * 验证文本块、拼接和 Unicode 转义中的空白值
      */
     @Test
-    void recognizesBlankConstantConcatenationTextBlocksAndUnicodeEscapes() throws Exception {
+    void scan_constantExpressions_reportsBlankValues() throws Exception {
         String[] options = {"attributes", "app.Log=value"};
         verify(AnnotationAttributeCheck.class, "@app.Log(\" \" + \"\\t\") class Example {}", 1, options);
         verify(AnnotationAttributeCheck.class, "@app.Log(\"\"\"\n    \n    \"\"\") class Example {}", 1, options);
@@ -44,7 +45,7 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
      * 验证嵌套注解的属性不能替代外层属性
      */
     @Test
-    void nestedAttributesCannotSatisfyTheOuterAnnotation() throws Exception {
+    void scan_nestedAnnotations_requiresOuterAttribute() throws Exception {
         verify(AnnotationAttributeCheck.class,
                 "@app.Log(meta = @app.Meta(message = \"内部描述\")) class Example {}",
                 1, "attributes", "app.Log=message");
@@ -57,7 +58,7 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
      * 验证每项配置属性只检查一次
      */
     @Test
-    void checksEachConfiguredAttributeOnce() throws Exception {
+    void scan_multipleAttributes_reportsEachAttributeOnce() throws Exception {
         verify(AnnotationAttributeCheck.class, "@app.Log class Example {}", 2,
                 "attributes", "app.Log=value,app.Log=message,app.Log=value");
     }

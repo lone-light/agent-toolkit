@@ -15,7 +15,7 @@ class ControllerEntityReturnCheckTest extends CustomCheckTest {
      * 验证只有 REST 返回类型中的已识别实体触发提示
      */
     @Test
-    void warnsOnlyOnPublishedRestMethodsAndRecognizedEntities() throws Exception {
+    void scan_restAndViewMethods_reportsRestEntitiesOnly() throws Exception {
         verify(ControllerEntityReturnCheck.class, IMPORTS + "@RestController class Example { @GetMapping Result<List<User>> list() { return null; } }", 1);
         verify(ControllerEntityReturnCheck.class, IMPORTS + "@RestController class Example { @GetMapping User[] list() { return null; } }", 1);
         verify(ControllerEntityReturnCheck.class, IMPORTS + "@RestController class Example { User helper() { return null; } @GetMapping long count() { return 0; } }", 0);
@@ -28,7 +28,7 @@ class ControllerEntityReturnCheckTest extends CustomCheckTest {
      * 验证常规响应模型、文件、空返回和流式响应可以通过
      */
     @Test
-    void allowsArbitraryExternalModelNamesFilesVoidAndStreams() throws Exception {
+    void scan_nonEntityResponses_acceptsModelsAndInfrastructureTypes() throws Exception {
         verify(ControllerEntityReturnCheck.class, IMPORTS + "@RestController class Example { @GetMapping ResultSnapshot get() { return null; } @GetMapping void export() {} @GetMapping org.springframework.core.io.Resource file() { return null; } }", 0);
     }
 
@@ -36,7 +36,7 @@ class ControllerEntityReturnCheckTest extends CustomCheckTest {
      * 验证返回类型泛型实参与类型注解的区分
      */
     @Test
-    void distinguishesTypeArgumentsFromAnnotationValues() throws Exception {
+    void scan_typeArgumentsAndAnnotationValues_checksReturnTypesOnly() throws Exception {
         verify(ControllerEntityReturnCheck.class, IMPORTS
                 + "@RestController class Example { @GetMapping List<@app.Doc(User.class) String> list() { return null; } }", 0);
         verify(ControllerEntityReturnCheck.class, IMPORTS

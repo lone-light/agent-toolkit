@@ -2,9 +2,10 @@ package lonelight.checks.framework;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.util.regex.Pattern;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
+
+import java.util.regex.Pattern;
 
 /**
  * 报告 REST 接口返回类型中的持久化实体
@@ -12,7 +13,14 @@ import lonelight.checks.RuleCheck;
  * @author lonelight
  */
 public final class ControllerEntityReturnCheck extends RuleCheck {
-    private Pattern entityPattern = Pattern.compile(".*\\.entity\\..*");
+    /**
+     * 用于匹配持久化实体全限定名的模式
+     */
+    private Pattern entityPattern = Pattern.compile(PersistenceModels.PACKAGE_PATTERN);
+
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -32,7 +40,7 @@ public final class ControllerEntityReturnCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.METHOD_DEF};
+        return new int[]{TokenTypes.METHOD_DEF};
     }
 
     /**

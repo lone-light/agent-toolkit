@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * 从主题样例的文件头建立规则与预期违规文件的索引
  *
- * @param files 可扫描的主题样例和配套源码
+ * @param files       可扫描的主题样例和配套源码
  * @param markedFiles 以规则短名和可选标识索引的样例文件
  * @author lonelight
  */
@@ -20,7 +20,7 @@ public record FixtureCatalog(List<Path> files, Map<String, List<Path>> markedFil
     private static final String RULE_MARKER = "// 检查：";
 
     /**
-     * 定位一组手动样例的目录
+     * 定位一组自动测试样例的目录
      *
      * @param group 样例分组名称
      * @return 样例目录的绝对路径
@@ -37,17 +37,27 @@ public record FixtureCatalog(List<Path> files, Map<String, List<Path>> markedFil
      * @throws IOException 样例目录或文件读取失败时
      */
     public static FixtureCatalog load(String group) throws IOException {
-        Path folder = directory(group);
-        try (var paths = Files.walk(folder)) {
+        return load(directory(group));
+    }
+
+    /**
+     * 加载指定源码目录的样例及文件头标记
+     *
+     * @param folderPath 样例源码根目录
+     * @return 按规则索引的样例
+     * @throws IOException 样例读取失败时
+     */
+    public static FixtureCatalog load(Path folderPath) throws IOException {
+        try (var paths = Files.walk(folderPath.toAbsolutePath())) {
             var files = paths.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".java"))
                     .sorted().toList();
             Map<String, List<Path>> marks = new LinkedHashMap<>();
-            for (Path file : files) {
-                try (var lines = Files.lines(file)) {
+            for (Path filePath : files) {
+                try (var lines = Files.lines(filePath)) {
                     lines.takeWhile(line -> line.isBlank() || line.startsWith("//"))
                             .filter(line -> line.startsWith(RULE_MARKER))
                             .flatMap(line -> java.util.Arrays.stream(line.substring(RULE_MARKER.length()).split(", ")))
-                            .forEach(rule -> marks.computeIfAbsent(rule, ignored -> new ArrayList<>()).add(file));
+                            .forEach(rule -> marks.computeIfAbsent(rule, ignored -> new ArrayList<>()).add(filePath));
                 }
             }
             marks.replaceAll((rule, examples) -> List.copyOf(examples));

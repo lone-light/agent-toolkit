@@ -18,7 +18,7 @@ public final class MultilineJavadocCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.BLOCK_COMMENT_BEGIN};
+        return new int[]{TokenTypes.BLOCK_COMMENT_BEGIN};
     }
 
     /**

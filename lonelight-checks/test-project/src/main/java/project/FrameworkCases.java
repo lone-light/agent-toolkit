@@ -15,10 +15,11 @@ import static org.springframework.beans.BeanUtils.copyProperties;
 class FrameworkCases {
     static final int DEFAULT_SIZE = 42;
 
-    void conversion(Object source, Object target, HttpServletRequest httpServletRequest) {
+    String conversion(Object source, Object target, HttpServletRequest httpServletRequest) {
         BeanUtils.copyProperties(source, target);
         copyProperties(source, target);
         org.springframework.beans.BeanUtils.copyProperties(source, target);
+        return httpServletRequest.getRequestURI();
     }
 
     void logs(Logger logger, Marker marker, String orderNumber) {
@@ -28,9 +29,9 @@ class FrameworkCases {
         logger.info("订单" + "信息");
     }
 
-    int size(boolean custom) {
-        System.out.println("同一提示");
-        System.out.println("同一提示");
+    int size(Logger logger, boolean custom) {
+        logger.info("同一提示");
+        logger.info("同一提示");
         return custom ? 42 : DEFAULT_SIZE;
     }
 }

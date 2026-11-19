@@ -1,10 +1,12 @@
 package lonelight.checks.framework;
 
-import java.nio.file.Path;
 import lonelight.checks.CheckTestSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * 验证框架方法的命名和文档豁免
@@ -13,15 +15,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class FrameworkMethodFilterTest {
     @TempDir
-    Path directory;
+    Path directoryPath;
 
     /**
      * 验证 JUnit 和 HTTP 注解只豁免适用的方法规则
      */
     @Test
-    void avoidsJUnitAndHttpConflictsButChecksUnrelatedAnnotations() throws Exception {
-        Path file = CheckTestSupport.write(directory, "Example.java", "public class Example { @org.junit.jupiter.api.Test public void run_Empty_ReturnsZero() {} @other.Test public void bad_name() {} @org.springframework.web.bind.annotation.GetMapping public int get() { return 0; } } ");
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), file);
+    void scan_frameworkMethods_appliesTargetedExemptions() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", "public class Example { @org.junit.jupiter.api.Test public void run_Empty_ReturnsZero() {} @other.Test public void bad_name() {} @org.springframework.web.bind.annotation.GetMapping public int get() { return 0; } } ");
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "MethodName#productionMethodName")).count());
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "MissingJavadocMethod")).count());
     }
@@ -30,8 +32,8 @@ class FrameworkMethodFilterTest {
      * 验证 JUnit 豁免不会扩散至局部类的方法
      */
     @Test
-    void junitExemptionDoesNotExtendToMethodsInLocalClasses() throws Exception {
-        Path file = CheckTestSupport.write(directory, "Example.java", """
+    void scan_localClasses_reportsNonTestMethods() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
                 package sample;
 
                 class Example {
@@ -43,7 +45,7 @@ class FrameworkMethodFilterTest {
                     }
                 }
                 """);
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), file);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "MethodName#productionMethodName")).count());
     }
 }

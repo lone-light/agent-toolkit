@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
  * @author lonelight
  */
 public final class MethodJavadocNumberingCheck extends RuleCheck {
-    private static final Pattern NUMBERED_STEP = Pattern.compile(
-            "^(?:<p>)?\\s*(?:[0-9]+(?:[、)）]|\\.(?![0-9]))|[（(][0-9]+[)）]|[一二三四五六七八九十]+、)\\s*.+");
+    private static final Pattern STEP_PREFIX = Pattern.compile(
+            "\\d++(?:[、)）]|\\.(?!\\d))|[（(]\\d++[)）]|[一二三四五六七八九十]++、");
 
     /**
      * 监听方法和构造器声明
@@ -42,7 +42,9 @@ public final class MethodJavadocNumberingCheck extends RuleCheck {
     @Override
     public void visitToken(DetailAST detailAST) {
         MethodDocumentation.forEachProseLine(detailAST, (lineNumber, prose) -> {
-            if (NUMBERED_STEP.matcher(prose).matches()) {
+            String text = prose.startsWith("<p>") ? prose.substring("<p>".length()).stripLeading() : prose;
+            var prefix = STEP_PREFIX.matcher(text);
+            if (prefix.lookingAt() && prefix.end() < text.length()) {
                 log(lineNumber, "javadoc.numbering");
             }
         });

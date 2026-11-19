@@ -6,7 +6,7 @@ import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import lonelight.checks.RuleCheck;
 
 /**
- * 检查 IDEA 默认导入布局的组间空行
+ * 检查 IDEA 默认导入分组的空行布局
  *
  * @author lonelight
  */
@@ -20,7 +20,14 @@ public final class ImportGroupSpacingCheck extends RuleCheck {
         OTHER, JAVAX, JAVA, STATIC
     }
 
+    /**
+     * 上一条导入所属的分组
+     */
     private Group previousGroup;
+
+    /**
+     * 上一条导入结束的位置
+     */
     private int previousEnd;
 
     /**
@@ -30,7 +37,7 @@ public final class ImportGroupSpacingCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.IMPORT, TokenTypes.STATIC_IMPORT};
+        return new int[]{TokenTypes.IMPORT, TokenTypes.STATIC_IMPORT};
     }
 
     /**
@@ -45,7 +52,7 @@ public final class ImportGroupSpacingCheck extends RuleCheck {
     }
 
     /**
-     * 按 IDEA 默认布局检查导入组间空行
+     * 按 IDEA 默认布局检查相邻导入组之间的空行
      *
      * @param node 当前导入声明
      */
@@ -55,20 +62,27 @@ public final class ImportGroupSpacingCheck extends RuleCheck {
         if (previousGroup != null && previousGroup.compareTo(group) < 0) {
             boolean betweenJdkGroups = previousGroup == Group.JAVAX && group == Group.JAVA;
             int linesBetween = node.getLineNo() - previousEnd - 1;
-            // 空行检查只适用于组间全为空白的情况
-            boolean onlyWhitespace = true;
-            for (int line = previousEnd; line < node.getLineNo() - 1; line++) {
-                if (!getLine(line).isBlank()) {
-                    onlyWhitespace = false;
-                    break;
-                }
-            }
-            if (onlyWhitespace && linesBetween != (betweenJdkGroups ? 0 : 1)) {
+            if (linesBetween != (betweenJdkGroups ? 0 : 1) && hasOnlyBlankLinesBefore(node.getLineNo())) {
                 log(node, betweenJdkGroups ? "import.spacing.jdk" : "import.spacing.boundary");
             }
         }
         previousGroup = group;
         previousEnd = node.getLastChild().getLineNo();
+    }
+
+    /**
+     * 判断上一条导入到当前导入之间是否只有空行
+     *
+     * @param importLine 当前导入的行号
+     * @return 组边界没有夹杂注释或代码时为 true
+     */
+    private boolean hasOnlyBlankLinesBefore(int importLine) {
+        for (int line = previousEnd; line < importLine - 1; line++) {
+            if (!getLine(line).isBlank()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

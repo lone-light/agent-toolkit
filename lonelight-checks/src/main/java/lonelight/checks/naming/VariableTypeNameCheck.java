@@ -2,10 +2,11 @@ package lonelight.checks.naming;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.beans.Introspector;
-import java.util.Set;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
+
+import java.beans.Introspector;
+import java.util.Set;
 
 /**
  * 检查对象变量名是否与其显式类型匹配
@@ -13,9 +14,24 @@ import lonelight.checks.RuleCheck;
  * @author lonelight
  */
 public final class VariableTypeNameCheck extends RuleCheck {
+    /**
+     * 跳过变量命名检查的类型
+     */
     private Set<String> ignoredTypes = Set.of();
+
+    /**
+     * 配置中允许的类型与变量名组合
+     */
     private Set<String> aliases = Set.of();
+
+    /**
+     * 是否接受以类型名结尾的带前缀变量名
+     */
     private boolean allowPrefixes = true;
+
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -60,7 +76,7 @@ public final class VariableTypeNameCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF};
+        return new int[]{TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF};
     }
 
     /**
@@ -121,7 +137,7 @@ public final class VariableTypeNameCheck extends RuleCheck {
      * 识别声明从外层作用域引用的泛型参数
      *
      * @param declaration 待检查的变量声明
-     * @param name 需要解析的类型名
+     * @param name        需要解析的类型名
      * @return 匹配外层泛型参数时为 true
      */
     private static boolean isTypeParameter(DetailAST declaration, String name) {

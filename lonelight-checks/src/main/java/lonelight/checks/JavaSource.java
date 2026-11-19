@@ -3,13 +3,8 @@ package lonelight.checks;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -18,11 +13,38 @@ import java.util.regex.Pattern;
  * @author lonelight
  */
 public final class JavaSource {
+    private static final int UNICODE_ESCAPE_DIGITS = 4;
+    private static final int HEX_RADIX = 16;
+    private static final Pattern HEX_DIGITS = Pattern.compile("[0-9a-fA-F]+");
+
+    /**
+     * 显式导入的类型短名与全限定名
+     */
     private final Map<String, String> imports = new HashMap<>();
+
+    /**
+     * 使用通配导入的包名
+     */
     private final Set<String> wildcardImports = new HashSet<>();
+
+    /**
+     * 当前文件声明的类型短名
+     */
     private final Set<String> declaredTypes = new HashSet<>();
+
+    /**
+     * 当前文件声明的泛型类型参数名
+     */
     private final Set<String> typeParameterNames = new HashSet<>();
-    private final Set<String> staticImportNames = new HashSet<>();
+
+    /**
+     * 静态导入中使用的成员全限定名
+     */
+    private final Set<String> staticImports = new HashSet<>();
+
+    /**
+     * 当前文件声明的包名
+     */
     private String packageName = "";
 
     /**
@@ -50,11 +72,11 @@ public final class JavaSource {
     private void readDeclaredTypes(DetailAST node) {
         switch (node.getType()) {
             case TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF,
-                    TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF ->
-                declaredTypes.add(declarationName(node).getText());
-            case TokenTypes.TYPE_PARAMETER ->
-                typeParameterNames.add(declarationName(node).getText());
-            default -> { }
+                 TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF -> declaredTypes.add(declarationName(node).getText());
+            case TokenTypes.TYPE_PARAMETER -> typeParameterNames.add(declarationName(node).getText());
+            default -> {
+                // 其余节点只继续检查子节点
+            }
         }
         for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
             readDeclaredTypes(child);
@@ -76,18 +98,19 @@ public final class JavaSource {
             }
         } else if (node.getType() == TokenTypes.STATIC_IMPORT) {
             var qualifier = node.findFirstToken(TokenTypes.DOT);
-            staticImportNames.add(simpleName(FullIdent.createFullIdent(qualifier).getText()));
+            staticImports.add(FullIdent.createFullIdent(qualifier).getText());
         } else if (node.getType() == TokenTypes.PACKAGE_DEF) {
-            packageName = FullIdent.createFullIdent(node.findFirstToken(TokenTypes.DOT) == null
-                    ? node.findFirstToken(TokenTypes.IDENT) : node.findFirstToken(TokenTypes.DOT)).getText();
+            var qualifier = node.findFirstToken(TokenTypes.DOT);
+            var name = qualifier == null ? node.findFirstToken(TokenTypes.IDENT) : qualifier;
+            packageName = FullIdent.createFullIdent(name).getText();
         }
     }
 
     /**
-     * 按显式导入和当前包补全类型名称
+     * 根据显式导入和当前包名解析类型名称
      *
      * @param written 源码中的类型名
-     * @return 补全后的类型名
+     * @return 解析后的类型名
      */
     public String resolve(String written) {
         int dot = written.indexOf('.');
@@ -120,7 +143,7 @@ public final class JavaSource {
     public boolean canShortenQualifiedName(String canonical) {
         String simple = simpleName(canonical);
         if (declaredTypes.contains(simple) || typeParameterNames.contains(simple)
-                || staticImportNames.contains(simple) || staticImportNames.contains("*")) {
+                || staticImports.stream().map(JavaSource::simpleName).anyMatch(name -> name.equals(simple) || name.equals("*"))) {
             return false;
         }
         String imported = imports.get(simple);
@@ -158,25 +181,25 @@ public final class JavaSource {
     /**
      * 按包名和导入判断类型是否匹配
      *
-     * @param written 源码中的类型名
+     * @param written   源码中的类型名
      * @param canonical 预期的全限定类型名
      * @return 可以确定匹配时为 true
      */
     public boolean isType(String written, String canonical) {
         return resolve(written).equals(canonical)
                 || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
-                    && canonical.startsWith("java.lang.") && written.equals(simpleName(canonical)))
+                && canonical.startsWith("java.lang.") && written.equals(simpleName(canonical)))
                 || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
-                    && wildcardImports.size() == 1
-                    && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')))
-                    && written.equals(simpleName(canonical)));
+                && wildcardImports.size() == 1
+                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')))
+                && written.equals(simpleName(canonical)));
     }
 
     /**
      * 检查声明是否带有指定注解
      *
      * @param declaration 待检查的声明节点
-     * @param canonical 注解的全限定名
+     * @param canonical   注解的全限定名
      * @return 存在匹配注解时为 true
      */
     public boolean hasAnnotation(DetailAST declaration, String canonical) {
@@ -186,26 +209,42 @@ public final class JavaSource {
     /**
      * 允许通过通配导入匹配已知类型
      *
-     * @param written 源码中的类型名
+     * @param written   源码中的类型名
      * @param canonical 预期的全限定类型名
      * @return 可以匹配时为 true
      */
     public boolean isKnownType(String written, String canonical) {
         return isType(written, canonical)
                 || !written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
-                    && written.equals(simpleName(canonical))
-                    && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')));
+                && written.equals(simpleName(canonical))
+                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')));
     }
 
     /**
      * 检查声明是否带有可识别的已知注解
      *
      * @param declaration 待检查的声明节点
-     * @param canonical 注解的全限定名
+     * @param canonical   注解的全限定名
      * @return 存在匹配注解时为 true
      */
     public boolean hasKnownAnnotation(DetailAST declaration, String canonical) {
         return annotations(declaration).stream().anyMatch(annotation -> isKnownType(annotationName(annotation), canonical));
+    }
+
+    /**
+     * 判断未限定的静态成员名能否从导入定位到目标类
+     *
+     * @param owner  目标类全限定名
+     * @param member 静态成员短名
+     * @return 显式导入或无其他通配导入的目标成员时为 true
+     */
+    public boolean hasStaticImport(String owner, String member) {
+        var explicit = staticImports.stream().filter(imported -> simpleName(imported).equals(member)).toList();
+        if (!explicit.isEmpty()) {
+            return explicit.size() == 1 && explicit.getFirst().equals(owner + "." + member);
+        }
+        return staticImports.contains(owner + ".*")
+                && staticImports.stream().filter(imported -> imported.endsWith(".*")).count() == 1;
     }
 
     /**
@@ -260,7 +299,7 @@ public final class JavaSource {
     /**
      * 收集子树中指定类别的节点
      *
-     * @param node 子树根节点，可为空
+     * @param node  子树根节点，可为空
      * @param token 目标节点类别
      * @return 按遍历顺序收集的节点，包含匹配的根节点
      */
@@ -273,10 +312,24 @@ public final class JavaSource {
     }
 
     /**
+     * 读取语法节点的直接子节点
+     *
+     * @param detailAST 待读取的节点，可为空
+     * @return 按源码顺序排列的子节点
+     */
+    public static List<DetailAST> children(DetailAST detailAST) {
+        List<DetailAST> children = new ArrayList<>();
+        for (DetailAST childDetailAST = detailAST == null ? null : detailAST.getFirstChild(); childDetailAST != null; childDetailAST = childDetailAST.getNextSibling()) {
+            children.add(childDetailAST);
+        }
+        return children;
+    }
+
+    /**
      * 递归收集符合类别的节点
      *
-     * @param node 当前节点
-     * @param token 目标节点类别
+     * @param node   当前节点
+     * @param token  目标节点类别
      * @param result 收集结果
      */
     private static void collect(DetailAST node, int token, List<DetailAST> result) {
@@ -355,7 +408,7 @@ public final class JavaSource {
      * 查找注解属性对应的表达式
      *
      * @param annotation 注解节点
-     * @param name 属性名
+     * @param name       属性名
      * @return 属性表达式，缺失时为 null
      */
     public static DetailAST attribute(DetailAST annotation, String name) {
@@ -372,22 +425,11 @@ public final class JavaSource {
      * 提取注解属性中的单个或成组注解
      *
      * @param annotation 外层注解节点
-     * @param name 属性名，省略属性名时为 value
+     * @param name       属性名，省略属性名时为 value
      * @return 按源码顺序排列的嵌套注解
      */
     public static List<DetailAST> annotationValues(DetailAST annotation, String name) {
-        DetailAST value = null;
-        for (DetailAST child = annotation.getFirstChild(); child != null; child = child.getNextSibling()) {
-            if (child.getType() == TokenTypes.ANNOTATION_MEMBER_VALUE_PAIR && child.getFirstChild().getText().equals(name)) {
-                value = child.getLastChild();
-                break;
-            }
-            if (name.equals("value") && (child.getType() == TokenTypes.ANNOTATION
-                    || child.getType() == TokenTypes.ANNOTATION_ARRAY_INIT)) {
-                value = child;
-                break;
-            }
-        }
+        var value = findAnnotationValue(annotation, name);
         if (value == null) {
             return List.of();
         }
@@ -406,18 +448,42 @@ public final class JavaSource {
     }
 
     /**
+     * 查找显式指定或省略属性名的注解值节点
+     *
+     * @param annotationDetailAST 外层注解
+     * @param name                属性名
+     * @return 匹配的值节点，找不到时为 null
+     */
+    private static DetailAST findAnnotationValue(DetailAST annotationDetailAST, String name) {
+        boolean implicit = name.equals("value");
+        for (var child = annotationDetailAST.getFirstChild(); child != null; child = child.getNextSibling()) {
+            var value = switch (child.getType()) {
+                case TokenTypes.ANNOTATION_MEMBER_VALUE_PAIR ->
+                        child.getFirstChild().getText().equals(name) ? child.getLastChild() : null;
+                case TokenTypes.ANNOTATION, TokenTypes.ANNOTATION_ARRAY_INIT -> implicit ? child : null;
+                default -> null;
+            };
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /**
      * 保存匹配类型的节点和全限定名
      *
-     * @param token 匹配到的类型语法树节点
+     * @param token         匹配到的类型语法树节点
      * @param canonicalName 解析后的完整类型名称
      * @author lonelight
      */
-    public record TypeReference(DetailAST token, String canonicalName) { }
+    public record TypeReference(DetailAST token, String canonicalName) {
+    }
 
     /**
      * 查找类型子树中首个匹配正则的类型
      *
-     * @param node 待查找的子树根节点
+     * @param node    待查找的子树根节点
      * @param pattern 匹配全限定类型名的正则表达式
      * @return 首个匹配的类型引用，找不到时为 null
      */
@@ -487,21 +553,32 @@ public final class JavaSource {
         while (index < text.length()) {
             char character = text.charAt(index);
             int nextIndex = index + 1;
-            if (character == '\\' && backslashes % 2 == 0) {
-                int digits = nextIndex;
-                while (digits < text.length() && text.charAt(digits) == 'u') {
-                    digits++;
-                }
-                if (digits > nextIndex && digits + 4 <= text.length()
-                        && text.substring(digits, digits + 4).matches("[0-9a-fA-F]{4}")) {
-                    character = (char) Integer.parseInt(text.substring(digits, digits + 4), 16);
-                    nextIndex = digits + 4;
-                }
+            int digits = character == '\\' && backslashes % 2 == 0 ? unicodeDigitsStart(text, nextIndex) : -1;
+            if (digits >= 0) {
+                nextIndex = digits + UNICODE_ESCAPE_DIGITS;
+                character = (char) Integer.parseInt(text, digits, nextIndex, HEX_RADIX);
             }
             result.append(character);
             backslashes = character == '\\' ? backslashes + 1 : 0;
             index = nextIndex;
         }
         return result.toString();
+    }
+
+    /**
+     * 定位 Unicode 转义的十六进制数字
+     *
+     * @param text  含转义的文本
+     * @param start 反斜杠之后的位置
+     * @return 数字起点，无有效转义时为 -1
+     */
+    private static int unicodeDigitsStart(String text, int start) {
+        int digits = start;
+        while (digits < text.length() && text.charAt(digits) == 'u') {
+            digits++;
+        }
+        int end = digits + UNICODE_ESCAPE_DIGITS;
+        return digits > start && end <= text.length() && HEX_DIGITS.matcher(text).region(digits, end).matches()
+                ? digits : -1;
     }
 }

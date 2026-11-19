@@ -2,11 +2,13 @@ package lonelight.checks.naming;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
+import lonelight.checks.JavaSource;
+import lonelight.checks.RuleCheck;
+
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
-import lonelight.checks.JavaSource;
-import lonelight.checks.RuleCheck;
 
 /**
  * 按配置检查类型名后缀
@@ -14,7 +16,16 @@ import lonelight.checks.RuleCheck;
  * @author lonelight
  */
 public final class TypeSuffixCheck extends RuleCheck {
+    private static final Pattern SUFFIX = Pattern.compile("[A-Za-z0-9]+");
+
+    /**
+     * 全限定类型名模式与允许的后缀
+     */
     private final Map<Pattern, String[]> mappings = new LinkedHashMap<>();
+
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -27,10 +38,12 @@ public final class TypeSuffixCheck extends RuleCheck {
         mappings.clear();
         for (String value : values) {
             String[] parts = value.split("=", 2);
-            if (parts.length != 2 || parts[0].isBlank() || !parts[1].matches("[A-Za-z0-9]+(\\|[A-Za-z0-9]+)*")) {
+            String suffixList = parts.length == 2 ? parts[1] : "";
+            String[] suffixes = suffixList.split("\\|", -1);
+            if (parts[0].isBlank() || Arrays.stream(suffixes).anyMatch(suffix -> !SUFFIX.matcher(suffix).matches())) {
                 throw new IllegalArgumentException("mappings entries must use regex=Suffix|OtherSuffix");
             }
-            mappings.put(Pattern.compile(parts[0]), parts[1].split("\\|"));
+            mappings.put(Pattern.compile(parts[0]), suffixes);
         }
     }
 
@@ -41,7 +54,7 @@ public final class TypeSuffixCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF, TokenTypes.ENUM_DEF};
+        return new int[]{TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF, TokenTypes.ENUM_DEF};
     }
 
     /**
@@ -64,7 +77,7 @@ public final class TypeSuffixCheck extends RuleCheck {
         DetailAST name = JavaSource.declarationName(node);
         for (Map.Entry<Pattern, String[]> mapping : mappings.entrySet()) {
             if (mapping.getKey().matcher(source.resolve(name.getText())).matches()
-                    && java.util.Arrays.stream(mapping.getValue()).noneMatch(name.getText()::endsWith)) {
+                    && Arrays.stream(mapping.getValue()).noneMatch(name.getText()::endsWith)) {
                 log(name, "type.suffix", String.join(" / ", mapping.getValue()));
             }
         }

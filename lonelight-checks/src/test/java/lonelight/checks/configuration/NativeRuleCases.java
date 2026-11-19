@@ -2,9 +2,7 @@ package lonelight.checks.configuration;
 
 import java.util.List;
 
-import static com.puppycrawl.tools.checkstyle.api.SeverityLevel.ERROR;
-import static com.puppycrawl.tools.checkstyle.api.SeverityLevel.INFO;
-import static com.puppycrawl.tools.checkstyle.api.SeverityLevel.WARNING;
+import static com.puppycrawl.tools.checkstyle.api.SeverityLevel.*;
 import static lonelight.checks.configuration.RuleCase.method;
 import static lonelight.checks.configuration.RuleCase.type;
 
@@ -20,7 +18,8 @@ final class NativeRuleCases {
     /**
      * 限制测试用例目录类实例化
      */
-    private NativeRuleCases() {}
+    private NativeRuleCases() {
+    }
 
     /**
      * 列出内置检查的合规输入和预期等级
@@ -111,7 +110,15 @@ final class NativeRuleCases {
                 new RuleCase("RedundantModifier", INFO, "interface Example { void run(); }"),
                 new RuleCase("DeclarationOrder", WARNING,
                         type("static int first;\nint second;\nExample() {}\nvoid run() {}")),
-                new RuleCase("VisibilityModifier", WARNING, type("private int value;")),
+                new RuleCase("VisibilityModifier", WARNING, """
+                        import org.junit.jupiter.api.io.TempDir;
+                        import java.nio.file.Path;
+                        class Example {
+                            @TempDir
+                            Path directory;
+                            private int value;
+                        }
+                        """),
                 new RuleCase("VariableDeclarationUsageDistance", INFO,
                         type("int run() { int value = 1;\n" + "System.nanoTime();\n".repeat(11) + "return value; }")),
                 new RuleCase("MissingOverrideOnRecordAccessor", WARNING,
@@ -161,6 +168,15 @@ final class NativeRuleCases {
                          * @return 结果
                          */
                         public int run(int value) { return value; }\
+                        """)),
+                new RuleCase("MissingDeprecated", WARNING, type("""
+                        /**
+                         * 读取旧格式
+                         *
+                         * @deprecated 请改用新格式
+                         */
+                        @Deprecated
+                        void readLegacy() {}\
                         """)),
                 new RuleCase("InvalidJavadocPosition", WARNING,
                         type("/** 执行 */\nvoid run() {}")),

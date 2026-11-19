@@ -5,8 +5,9 @@ import com.puppycrawl.tools.checkstyle.TreeWalkerAuditEvent;
 import com.puppycrawl.tools.checkstyle.TreeWalkerFilter;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.util.Set;
 import lonelight.checks.JavaSource;
+
+import java.util.Set;
 
 /**
  * 按框架注解和 unused 标记过滤未使用私有字段的诊断
@@ -14,7 +15,14 @@ import lonelight.checks.JavaSource;
  * @author lonelight
  */
 public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean implements TreeWalkerFilter {
+    /**
+     * 可豁免未使用检查的字段注解
+     */
     private Set<String> fieldAnnotations = Set.of();
+
+    /**
+     * 可豁免未使用检查的所属类型注解
+     */
     private Set<String> typeAnnotations = Set.of();
 
     /**
@@ -41,7 +49,9 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
      * 完成配置阶段，注解列表由配置项直接提供
      */
     @Override
-    protected void finishLocalSetup() { }
+    protected void finishLocalSetup() {
+        // 配置注解列表时已完成初始化
+    }
 
     /**
      * 过滤符合豁免条件的未使用字段诊断
@@ -73,8 +83,8 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
      * 判断声明是否由框架使用或显式豁免
      *
      * @param declaration 字段或类型声明节点
-     * @param allowed 允许豁免的注解全限定名
-     * @param source 当前文件的名称索引
+     * @param allowed     允许豁免的注解全限定名
+     * @param source      当前文件的名称索引
      * @return 存在生效的豁免注解时为 true
      */
     private static boolean hasExemption(DetailAST declaration, Set<String> allowed, JavaSource source) {
@@ -95,7 +105,7 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
      * 识别显式声明的 unused 豁免
      *
      * @param declaration 字段或类型声明节点
-     * @param source 当前文件的名称索引
+     * @param source      当前文件的名称索引
      * @return 明确抑制 unused 警告时为 true
      */
     private static boolean hasUnusedSuppression(DetailAST declaration, JavaSource source) {

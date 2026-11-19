@@ -12,6 +12,9 @@ import lonelight.checks.framework.FrameworkMethods;
  * @author lonelight
  */
 public final class TestMethodNameCheck extends RuleCheck {
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -21,7 +24,7 @@ public final class TestMethodNameCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.METHOD_DEF};
+        return new int[]{TokenTypes.METHOD_DEF};
     }
 
     /**

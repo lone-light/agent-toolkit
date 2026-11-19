@@ -3,8 +3,9 @@ package lonelight.checks.framework;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
-import java.util.Set;
 import lonelight.checks.RuleCheck;
+
+import java.util.Set;
 
 /**
  * 报告通过全限定名调用 BeanUtils 的写法
@@ -22,7 +23,7 @@ public final class BeanUtilsCallCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.METHOD_CALL};
+        return new int[]{TokenTypes.METHOD_CALL};
     }
 
     /**

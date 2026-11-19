@@ -1,10 +1,12 @@
 package lonelight.checks.configuration;
 
-import java.nio.file.Path;
-import java.util.List;
 import lonelight.checks.CheckTestSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -14,27 +16,27 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class FiltersTest {
     @TempDir
-    Path directory;
+    Path directoryPath;
 
     /**
      * 验证规则跳过构建产物且仍检查真实源码
      */
     @Test
-    void generatedOutputsAreSkippedAndSourceRootsRemainChecked() throws Exception {
+    void scan_generatedDirectories_keepsSourceRoots() throws Exception {
         for (String profile : List.of("lonelight-base", "lonelight-project")) {
-            Path generated = CheckTestSupport.write(directory.resolve("target/generated"), "Example.java", "invalid Java");
-            assertTrue(CheckTestSupport.scan(CheckTestSupport.load(profile), generated).isEmpty());
+            Path generatedPath = CheckTestSupport.write(directoryPath.resolve("target/generated"), "Example.java", "invalid Java");
+            assertTrue(CheckTestSupport.scan(CheckTestSupport.load(profile), generatedPath).isEmpty());
         }
-        Path realSource = CheckTestSupport.write(directory.resolve("build/src/main/java"), "Example.java", "public class Example {}\n");
-        assertFalse(CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), realSource).isEmpty());
+        Path realSourcePath = CheckTestSupport.write(directoryPath.resolve("build/src/main/java"), "Example.java", "public class Example {}\n");
+        assertFalse(CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), realSourcePath).isEmpty());
     }
 
     /**
      * 验证成对注释只屏蔽指定规则
      */
     @Test
-    void pairedCommentsSuppressOnlyTheirNamedCheck() throws Exception {
-        Path file = CheckTestSupport.write(directory, "Example.java", """
+    void suppress_pairedComments_skipsNamedCheck() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
                 class Example {
                     void run() {
                         // CHECKSTYLE.OFF: NeedBraces
@@ -44,7 +46,7 @@ class FiltersTest {
                     }
                 }
                 """);
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), file);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "NeedBraces")).count());
     }
 
@@ -52,11 +54,11 @@ class FiltersTest {
      * 验证行宽检查使用独立的成对豁免标记
      */
     @Test
-    void lineLengthUsesItsOwnExplicitPairedMarkers() throws Exception {
+    void suppress_lineLengthMarkers_skipsMarkedLines() throws Exception {
         String longLine = "// " + "x".repeat(130) + "\n";
-        Path file = CheckTestSupport.write(directory, "Example.java", "// CHECKSTYLE.OFF: LineLength\n"
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", "// CHECKSTYLE.OFF: LineLength\n"
                 + longLine + "// CHECKSTYLE.ON: LineLength\n" + longLine + "class Example {}\n");
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), file);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "LineLength")).count());
     }
 
@@ -64,10 +66,10 @@ class FiltersTest {
      * 验证测试目录适用指定的检查豁免
      */
     @Test
-    void testPathsSuppressOnlyExplicitTestNoise() throws Exception {
-        Path file = CheckTestSupport.write(directory.resolve("src/test/java"), "Example.java",
+    void scan_testSources_appliesConfiguredExemptions() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath.resolve("src/test/java"), "Example.java",
                 "class Example { private int count = 42; void run() { use(\"repeated\"); use(\"repeated\"); } }");
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), file);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), filePath);
         for (String name : List.of("MagicNumber", "MultipleStringLiterals", "lonelight.checks.javadoc.FieldJavadocCheck")) {
             assertTrue(events.stream().noneMatch(event -> CheckTestSupport.matches(event, name)), name);
         }

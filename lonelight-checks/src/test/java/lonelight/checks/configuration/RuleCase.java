@@ -5,23 +5,23 @@ import com.puppycrawl.tools.checkstyle.api.SeverityLevel;
 /**
  * 记录内置规则的合规源码及预期诊断等级
  *
- * @param key 检查模块名称，包含可选的配置 id
- * @param expectedSeverity 独立于 XML 配置的预期诊断等级
- * @param accepted 应通过目标检查的合规源码
- * @param filename 创建合规样例时使用的 Java 文件名
+ * @param key                   检查模块名称，包含可选的配置 id
+ * @param expectedSeverityLevel 独立于 XML 配置的预期诊断等级
+ * @param accepted              应通过目标检查的合规源码
+ * @param filename              创建合规样例时使用的 Java 文件名
  * @author lonelight
  */
-record RuleCase(String key, SeverityLevel expectedSeverity, String accepted, String filename) {
+record RuleCase(String key, SeverityLevel expectedSeverityLevel, String accepted, String filename) {
 
     /**
      * 用默认文件名建立规则用例
      *
-     * @param key 规则名称和可选标识
-     * @param expectedSeverity 预期诊断等级
-     * @param accepted 应通过规则的源码
+     * @param key                   规则名称和可选标识
+     * @param expectedSeverityLevel 预期诊断等级
+     * @param accepted              应通过规则的源码
      */
-    RuleCase(String key, SeverityLevel expectedSeverity, String accepted) {
-        this(key, expectedSeverity, accepted, "Example.java");
+    RuleCase(String key, SeverityLevel expectedSeverityLevel, String accepted) {
+        this(key, expectedSeverityLevel, accepted, "Example.java");
     }
 
     /**

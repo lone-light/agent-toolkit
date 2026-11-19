@@ -16,7 +16,7 @@
     </properties>
     <dependencyManagement>
         <dependencies>
-            <!-- 覆盖 Checkstyle 传递依赖，修复 CVE-2026-118042 -->
+            <!-- 统一 Checkstyle 使用的 Guava 版本 -->
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>

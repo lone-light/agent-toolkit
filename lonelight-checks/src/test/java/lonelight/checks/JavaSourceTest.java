@@ -59,8 +59,8 @@ class JavaSourceTest {
      */
     private static String readStringLiteral(String raw) {
         // 直接构造字面量节点，避免词法分析提前拒绝非法转义。
-        DetailAstImpl literal = new DetailAstImpl();
-        literal.initialize(TokenTypes.STRING_LITERAL, '"' + raw + '"');
-        return JavaSource.literalText(literal);
+        DetailAstImpl detailAstImpl = new DetailAstImpl();
+        detailAstImpl.initialize(TokenTypes.STRING_LITERAL, '"' + raw + '"');
+        return JavaSource.literalText(detailAstImpl);
     }
 }

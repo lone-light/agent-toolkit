@@ -2,12 +2,15 @@ package lonelight.checks.framework;
 
 import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import com.puppycrawl.tools.checkstyle.api.SeverityLevel;
-import java.nio.file.Path;
-import java.util.List;
 import lonelight.checks.CheckTestSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import static org.junit.jupiter.api.Assertions.*;
+
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 验证 REST 接口和请求响应模型的注解检查
@@ -18,14 +21,14 @@ class ControllerApiDocumentationCheckTest {
     private static final String RULE = ControllerApiDocumentationCheck.class.getName();
 
     @TempDir
-    Path directory;
+    Path directoryPath;
 
     /**
      * 验证缺少摘要或公开参数说明的接口会被报告
      */
     @Test
-    void reportsMissingAndBlankOperationsAndPublicParametersInProjectProfile() throws Exception {
-        Path source = write("Users.java", """
+    void scan_restEndpoints_reportsMissingOrBlankDescriptions() throws Exception {
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import org.springframework.web.bind.annotation.*;
                 import io.swagger.v3.oas.annotations.Operation;
@@ -44,12 +47,12 @@ class ControllerApiDocumentationCheckTest {
                     void helper(String input) {}
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(List.of(9, 9, 9, 12, 12, 12), events.stream().map(AuditEvent::getLine).toList());
         assertEquals(2, count(events, "@Operation"));
         assertEquals(4, count(events, "@Parameter"));
         assertTrue(events.stream().allMatch(event -> event.getSeverityLevel() == SeverityLevel.WARNING));
-        assertEquals(0, CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), source).stream()
+        assertEquals(0, CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), sourcePath).stream()
                 .filter(event -> CheckTestSupport.matches(event, RULE)).count());
     }
 
@@ -57,7 +60,7 @@ class ControllerApiDocumentationCheckTest {
      * 验证请求和响应模型可跨文件按类型引用定位
      */
     @Test
-    void followsRequestAndResponseAcrossFilesWithoutDependingOnNames() throws Exception {
+    void scan_requestAndResponseTypes_followsSourceReferences() throws Exception {
         write("OrderData.java", """
                 package app.data;
                 import io.swagger.v3.oas.annotations.media.Schema;
@@ -90,7 +93,7 @@ class ControllerApiDocumentationCheckTest {
                 import io.swagger.v3.oas.annotations.media.Schema;
                 public record Snapshot(@Schema(description = "结果编号") String reference, String note) {}
                 """);
-        Path source = write("Orders.java", """
+        Path sourcePath = write("Orders.java", """
                 package app.web;
                 import java.util.List;
                 import app.data.*;
@@ -107,21 +110,21 @@ class ControllerApiDocumentationCheckTest {
                     record UnusedDTO(String ignored) {}
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(4, events.size(), () -> messages(events).toString());
         assertEquals(1, count(events, "app.data.OrderData 的字段 email"));
         assertEquals(1, count(events, "app.data.OrderData 的字段 address"));
         assertEquals(1, count(events, "app.data.Address 的字段 postcode"));
         assertEquals(1, count(events, "app.data.Snapshot 的字段 note"));
-        assertTrue(events.stream().allMatch(event -> Path.of(event.getFileName()).equals(source)));
+        assertTrue(events.stream().allMatch(event -> Path.of(event.getFileName()).equals(sourcePath)));
     }
 
     /**
      * 验证参数别名说明和显式隐藏接口受到支持
      */
     @Test
-    void supportsDocumentedAliasesAndExplicitlyHiddenEndpoints() throws Exception {
-        Path source = write("Users.java", """
+    void scan_parameterAliasesAndHiddenEndpoints_acceptsDocumentedApi() throws Exception {
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import io.swagger.v3.oas.annotations.Hidden;
                 import io.swagger.v3.oas.annotations.Operation;
@@ -143,15 +146,15 @@ class ControllerApiDocumentationCheckTest {
                     @GetMapping String view(@RequestParam String skip) { return "index"; }
                 }
                 """);
-        assertTrue(projectEvents(source).isEmpty(), "valid annotations should satisfy the rule");
+        assertTrue(projectEvents(sourcePath).isEmpty(), "valid annotations should satisfy the rule");
     }
 
     /**
      * 验证参数说明同时匹配名称、位置和注解类型
      */
     @Test
-    void verifiesParameterLocationAndDoesNotTreatUnrelatedAnnotationsAsDocumentation() throws Exception {
-        Path source = write("Users.java", """
+    void scan_parameterDocumentation_matchesBindingNameAndLocation() throws Exception {
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import org.springframework.web.bind.annotation.*;
                 import io.swagger.v3.oas.annotations.Parameter;
@@ -164,7 +167,7 @@ class ControllerApiDocumentationCheckTest {
                     void read(@PathVariable Long id) {}
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(2, events.size(), () -> messages(events).toString());
         assertEquals(1, count(events, "非空 summary"));
         assertEquals(1, count(events, "公开请求参数"));
@@ -174,8 +177,8 @@ class ControllerApiDocumentationCheckTest {
      * 验证原始请求体和表单模型使用各自的说明要求
      */
     @Test
-    void distinguishesRawRequestBodiesAndLocalFormModels() throws Exception {
-        Path source = write("Search.java", """
+    void scan_requestBodiesAndFormModels_requiresRelevantDescription() throws Exception {
+        Path sourcePath = write("Search.java", """
                 package app.web;
                 import org.springframework.web.bind.annotation.*;
                 import io.swagger.v3.oas.annotations.Operation;
@@ -202,7 +205,7 @@ class ControllerApiDocumentationCheckTest {
                     record OtherFilters(String group) {}
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(3, events.size(), () -> messages(events).toString());
         assertEquals(1, count(events, "请求体需要"));
         assertEquals(1, count(events, "app.web.Search.Filters 的字段 type"));
@@ -213,10 +216,10 @@ class ControllerApiDocumentationCheckTest {
      * 验证复扫会读取更新后的模型并跳过缺失源码
      */
     @Test
-    void rereadsModifiedModelOnNextScanAndSafelySkipsMissingSources() throws Exception {
+    void scan_updatedAndMissingModels_refreshesAvailableTypes() throws Exception {
         String definition = "package app.data; public record Entry(String label) {}";
         write("Entry.java", definition);
-        Path source = write("Users.java", """
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import app.data.Entry;
                 import external.Binary;
@@ -229,10 +232,10 @@ class ControllerApiDocumentationCheckTest {
                     @GetMapping @Operation(summary = "取得外部资料") Binary external() { return null; }
                 }
                 """);
-        assertEquals(1, count(projectEvents(source), "app.data.Entry 的字段 label"));
+        assertEquals(1, count(projectEvents(sourcePath), "app.data.Entry 的字段 label"));
         write("Entry.java", definition.replace("String label",
                 "@io.swagger.v3.oas.annotations.media.Schema(description = \"标签\") String label"));
-        assertTrue(projectEvents(source).isEmpty());
+        assertTrue(projectEvents(sourcePath).isEmpty());
     }
 
     /**
@@ -251,7 +254,7 @@ class ControllerApiDocumentationCheckTest {
                     @ArraySchema(arraySchema = @Schema(description = " ")) List<String> notes
                 ) {}
                 """);
-        Path source = write("Users.java", """
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import app.data.Item;
                 import io.swagger.v3.oas.annotations.Operation;
@@ -264,7 +267,7 @@ class ControllerApiDocumentationCheckTest {
                     Item read() { return null; }
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(1, events.size(), () -> messages(events).toString());
         assertEquals(1, count(events, "字段 notes"));
     }
@@ -273,7 +276,7 @@ class ControllerApiDocumentationCheckTest {
      * 验证模型诊断按字段去重并区分读写方向
      */
     @Test
-    void reportsSharedModelFieldsOnceAndChecksReadAndWriteSidesSeparately() throws Exception {
+    void scan_sharedModels_checksAccessDirectionAndDeduplicates() throws Exception {
         write("Item.java", """
                 package app.data;
                 import io.swagger.v3.oas.annotations.media.Schema;
@@ -284,7 +287,7 @@ class ControllerApiDocumentationCheckTest {
                     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY) String secret
                 ) {}
                 """);
-        Path source = write("Users.java", """
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import app.data.Item;
                 import org.springframework.web.bind.annotation.*;
@@ -298,7 +301,7 @@ class ControllerApiDocumentationCheckTest {
                     void write(@RequestBody Item item) {}
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(3, events.size(), () -> messages(events).toString());
         assertEquals(List.of(7, 7, 11), events.stream().map(AuditEvent::getLine).toList());
         assertEquals(1, count(events, "字段 label"));
@@ -310,7 +313,7 @@ class ControllerApiDocumentationCheckTest {
      * 验证隐式枚举参数及包内父类字段的说明检查
      */
     @Test
-    void checksImplicitEnumParametersAndFindsPackageLocalInheritedFields() throws Exception {
+    void scan_implicitEnumAndInheritedFields_checksBothDescriptions() throws Exception {
         write("Item.java", """
                 package app.data;
                 public class Item extends Base {
@@ -320,7 +323,7 @@ class ControllerApiDocumentationCheckTest {
                 """);
         write("Base.java", "package app.data; class Base { String note; }");
         write("Status.java", "package app.data; public enum Status { AVAILABLE }");
-        Path source = write("Users.java", """
+        Path sourcePath = write("Users.java", """
                 package app.web;
                 import app.data.Item;
                 import app.data.Status;
@@ -333,7 +336,7 @@ class ControllerApiDocumentationCheckTest {
                     ResponseEntity<Item> read(Status status) { return null; }
                 }
                 """);
-        var events = projectEvents(source);
+        var events = projectEvents(sourcePath);
         assertEquals(2, events.size(), () -> messages(events).toString());
         assertEquals(1, count(events, "app.data.Base 的字段 note"));
         assertEquals(1, count(events, "@Parameter"));
@@ -343,23 +346,23 @@ class ControllerApiDocumentationCheckTest {
      * 把模型或接口源码写入当前用例目录
      *
      * @param filename Java 文件名
-     * @param input 待写入的源码
+     * @param input    待写入的源码
      * @return 已写入的文件路径
      * @throws Exception 目录创建或写入失败时
      */
     private Path write(String filename, String input) throws Exception {
-        return CheckTestSupport.write(directory, filename, input);
+        return CheckTestSupport.write(directoryPath, filename, input);
     }
 
     /**
      * 从项目配置的扫描结果中筛出接口文档诊断
      *
-     * @param source 待扫描的源码路径
+     * @param sourcePath 待扫描的源码路径
      * @return 接口文档检查产生的诊断
      * @throws Exception 配置读取或扫描失败时
      */
-    private static List<AuditEvent> projectEvents(Path source) throws Exception {
-        return CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), source).stream()
+    private static List<AuditEvent> projectEvents(Path sourcePath) throws Exception {
+        return CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), sourcePath).stream()
                 .filter(event -> CheckTestSupport.matches(event, RULE)).toList();
     }
 
@@ -377,7 +380,7 @@ class ControllerApiDocumentationCheckTest {
      * 统计包含指定文本的诊断
      *
      * @param events 扫描事件列表
-     * @param text 需要匹配的消息片段
+     * @param text   需要匹配的消息片段
      * @return 包含该片段的诊断数量
      */
     private static long count(List<AuditEvent> events, String text) {

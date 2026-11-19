@@ -2,12 +2,13 @@ package lonelight.checks.framework;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
+import lonelight.checks.JavaSource;
+import lonelight.checks.RuleCheck;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import lonelight.checks.JavaSource;
-import lonelight.checks.RuleCheck;
 
 /**
  * 检查指定注解属性是否缺失或为空白
@@ -15,7 +16,14 @@ import lonelight.checks.RuleCheck;
  * @author lonelight
  */
 public final class AnnotationAttributeCheck extends RuleCheck {
+    /**
+     * 各注解必须填写的属性名
+     */
     private final Map<String, Set<String>> attributes = new LinkedHashMap<>();
+
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
 
     /**
@@ -42,7 +50,7 @@ public final class AnnotationAttributeCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.ANNOTATION};
+        return new int[]{TokenTypes.ANNOTATION};
     }
 
     /**

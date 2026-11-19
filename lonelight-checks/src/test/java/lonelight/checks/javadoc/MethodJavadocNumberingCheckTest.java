@@ -13,7 +13,7 @@ class MethodJavadocNumberingCheckTest extends CustomCheckTest {
      * 验证步骤编号可检出且代码片段可通过
      */
     @Test
-    void checksNumberedProseAndIgnoresCode() throws Exception {
+    void scan_numberedProse_reportsOutsideCode() throws Exception {
         verify(MethodJavadocNumberingCheck.class, """
                 class Example {
                     /**
@@ -33,5 +33,9 @@ class MethodJavadocNumberingCheckTest extends CustomCheckTest {
         verify(MethodJavadocNumberingCheck.class, "class Example { /** @param count 1.5 倍 */ void run(int count) {} }", 0);
         verify(MethodJavadocNumberingCheck.class, "class Example { /** 1.5 倍的缩放系数 */ void run() {} }", 0);
         verify(MethodJavadocNumberingCheck.class, "class Example { /** 1.获取数据 */ void run() {} }", 1);
+        verify(MethodJavadocNumberingCheck.class, "class Example { /** <p> （12）加载数据 */ void run() {} }", 1);
+        verify(MethodJavadocNumberingCheck.class, "class Example { /** 十二、 */ void run() {} }", 0);
+        verify(MethodJavadocNumberingCheck.class,
+                "class Example { /** " + "1".repeat(10_000) + ".5 倍 */ void run() {} }", 0);
     }
 }

@@ -2,12 +2,13 @@ package lonelight.checks.imports;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
+import lonelight.checks.JavaSource;
+import lonelight.checks.RuleCheck;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import lonelight.checks.JavaSource;
-import lonelight.checks.RuleCheck;
 
 /**
  * 报告可安全改用短名的全限定注解
@@ -15,8 +16,19 @@ import lonelight.checks.RuleCheck;
  * @author lonelight
  */
 public final class QualifiedAnnotationCheck extends RuleCheck {
+    /**
+     * 当前文件的名称索引
+     */
     private JavaSource source;
+
+    /**
+     * 按短名索引的注解类型
+     */
     private final Map<String, Set<String>> annotationsByName = new HashMap<>();
+
+    /**
+     * 当前文件中已使用的类型短名
+     */
     private final Set<String> shortTypeNames = new HashSet<>();
 
     /**
@@ -26,7 +38,7 @@ public final class QualifiedAnnotationCheck extends RuleCheck {
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[] {TokenTypes.ANNOTATION};
+        return new int[]{TokenTypes.ANNOTATION};
     }
 
     /**
@@ -64,7 +76,7 @@ public final class QualifiedAnnotationCheck extends RuleCheck {
         if (!isPackageQualified(written) || !source.canShortenQualifiedName(written)
                 || shortTypeNames.contains(simple) && !source.isType(simple, written)
                 || annotationsByName.get(simple).stream().anyMatch(other ->
-                    !other.equals(written) && (!other.equals(simple) || !source.isType(simple, written)))) {
+                !other.equals(written) && (!other.equals(simple) || !source.isType(simple, written)))) {
             return;
         }
         log(annotation, "annotation.qualified", simple);

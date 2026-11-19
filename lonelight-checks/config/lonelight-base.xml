@@ -1,504 +1,527 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE module PUBLIC "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
-    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!-- Lonelight Checks 0.1.0 -->
 <module name="Checker">
-    <property name="charset" value="UTF-8" />
-    <property name="fileExtensions" value="java" />
+    <property name="charset" value="UTF-8"/>
+    <property name="fileExtensions" value="java"/>
     <!-- 应用源码中按检查名称或 id 声明的豁免 -->
-    <module name="SuppressWarningsFilter" />
+    <module name="SuppressWarningsFilter"/>
     <!-- 跳过构建生成目录，保留正常源码路径 -->
     <module name="BeforeExecutionExclusionFileFilter">
-        <property name="fileNamePattern" value="^(?!.*[/\\]src[/\\](main|test)[/\\]java[/\\]).*[/\\](target|build|generated-sources|generated-test-sources)[/\\]" />
+        <property name="fileNamePattern"
+                  value="^(?!.*[/\\]src[/\\](main|test)[/\\]java[/\\]).*[/\\](target|build|generated-sources|generated-test-sources)[/\\]"/>
     </module>
     <!-- 禁止 Tab 字符 -->
     <module name="FileTabCharacter">
-        <property name="severity" value="warning" />
-        <property name="eachLine" value="true" />
+        <property name="severity" value="warning"/>
+        <property name="eachLine" value="true"/>
     </module>
     <!-- 非空文件末尾保留换行 -->
     <module name="NewlineAtEndOfFile">
-        <property name="severity" value="warning" />
+        <property name="severity" value="warning"/>
     </module>
     <!-- 提示超过 120 字符的行 -->
     <module name="LineLength">
-        <property name="severity" value="info" />
-        <property name="max" value="120" />
-        <property name="ignorePattern" value="^package\s|^import\s|https?://|ftp://" />
+        <property name="severity" value="info"/>
+        <property name="max" value="120"/>
+        <property name="ignorePattern" value="^package\s|^import\s|https?://|ftp://"/>
     </module>
     <!-- 禁止行尾空白 -->
     <module name="RegexpSingleline">
-        <property name="severity" value="warning" />
-        <property name="id" value="noTrailingWhitespace" />
-        <property name="format" value="\s+$" />
-        <property name="maximum" value="0" />
-        <property name="message" value="请删除行尾空白" />
+        <property name="severity" value="warning"/>
+        <property name="id" value="noTrailingWhitespace"/>
+        <property name="format" value="\s+$"/>
+        <property name="maximum" value="0"/>
+        <property name="message" value="请删除行尾空白"/>
     </module>
     <!-- 使用成对的显式标记豁免行宽建议 -->
     <module name="SuppressWithPlainTextCommentFilter">
-        <property name="checkFormat" value="\.LineLengthCheck$" />
-        <property name="offCommentFormat" value="^\s*// CHECKSTYLE\.OFF: LineLength\s*$" />
-        <property name="onCommentFormat" value="^\s*// CHECKSTYLE\.ON: LineLength\s*$" />
+        <property name="checkFormat" value="\.LineLengthCheck$"/>
+        <property name="offCommentFormat" value="^\s*// CHECKSTYLE\.OFF: LineLength\s*$"/>
+        <property name="onCommentFormat" value="^\s*// CHECKSTYLE\.ON: LineLength\s*$"/>
     </module>
     <!-- 解析 Java 语法并运行通用检查 -->
     <module name="TreeWalker">
         <!-- 顶层类型名与文件名一致 -->
         <module name="OuterTypeFilename">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 要求包声明存在并与源码所在目录对应 -->
         <module name="PackageDeclaration">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 每个文件声明一个顶层类型 -->
         <module name="OneTopLevelClass">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 让 package、各类 import 和模块声明头保持在同一行 -->
         <module name="NoLineWrap">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 按 requires、exports、opens、uses、provides 排列 Java 模块指令 -->
         <module name="ModuleDirectiveOrder">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 统一包名为小写分段形式 -->
         <module name="PackageName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
         </module>
         <!-- 统一具名类型使用大驼峰名称 -->
         <module name="TypeName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[A-Z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[A-Z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一普通方法使用以小写字母开头的驼峰名称 -->
         <module name="MethodName">
-            <property name="severity" value="warning" />
-            <property name="id" value="productionMethodName" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="id" value="productionMethodName"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一普通实例字段使用小驼峰名称 -->
         <module name="MemberName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一可变静态字段使用小驼峰名称 -->
         <module name="StaticVariableName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一方法和构造方法参数使用小驼峰名称 -->
         <module name="ParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一普通局部变量使用小驼峰名称 -->
         <module name="LocalVariableName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 检查 final 局部变量和资源变量，catch 参数由 CatchParameterName 检查 -->
         <module name="LocalFinalVariableName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
-            <property name="tokens" value="VARIABLE_DEF, RESOURCE" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
+            <property name="tokens" value="VARIABLE_DEF, RESOURCE"/>
         </module>
         <!-- 统一模式匹配中声明的变量名称 -->
         <module name="PatternVariableName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 检查 Lambda 参数命名 -->
         <module name="LambdaParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一捕获异常时的参数名称 -->
         <module name="CatchParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 检查 record 组件命名 -->
         <module name="RecordComponentName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[a-z][a-zA-Z0-9]*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*$"/>
         </module>
         <!-- 统一常量字段使用大写字母、数字和下划线 -->
         <module name="ConstantName">
-            <property name="severity" value="warning" />
-            <property name="format" value="^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$"/>
         </module>
         <!-- 统一类泛型参数的命名方式 -->
         <module name="ClassTypeParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)"/>
         </module>
         <!-- 统一接口泛型参数的命名方式 -->
         <module name="InterfaceTypeParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)"/>
         </module>
         <!-- 统一方法和构造方法泛型参数的命名方式 -->
         <module name="MethodTypeParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)"/>
         </module>
         <!-- 统一 record 泛型参数的命名方式 -->
         <module name="RecordTypeParameterName">
-            <property name="severity" value="warning" />
-            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)" />
+            <property name="severity" value="warning"/>
+            <property name="format" value="(^[A-Z][0-9]?$)|(^([A-Z][a-z0-9]*)+T$)"/>
         </module>
         <!-- 报告未使用的显式导入 -->
         <module name="UnusedImports">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 报告重复导入、同包导入和其他可由语法确定的冗余导入 -->
         <module name="RedundantImport">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 禁止使用 JDK 内部实现包 -->
         <module name="IllegalImport">
-            <property name="severity" value="error" />
-            <property name="regexp" value="true" />
-            <property name="illegalPkgs" value="^sun\..*,^jdk\.internal\..*" />
+            <property name="severity" value="error"/>
+            <property name="regexp" value="true"/>
+            <property name="illegalPkgs" value="^sun\..*,^jdk\.internal\..*"/>
         </module>
         <!-- 按 IDEA 默认布局检查导入分组和排序 -->
         <module name="CustomImportOrder">
-            <property name="severity" value="warning" />
-            <property name="customImportOrderRules" value="THIRD_PARTY_PACKAGE,SPECIAL_IMPORTS,STANDARD_JAVA_PACKAGE,STATIC" />
-            <property name="specialImportsRegExp" value="^javax\." />
-            <property name="standardPackageRegExp" value="^java\." />
-            <property name="sortImportsInGroupAlphabetically" value="true" />
-            <property name="separateLineBetweenGroups" value="false" />
+            <property name="severity" value="warning"/>
+            <property name="customImportOrderRules"
+                      value="THIRD_PARTY_PACKAGE,SPECIAL_IMPORTS,STANDARD_JAVA_PACKAGE,STATIC"/>
+            <property name="specialImportsRegExp" value="^javax\."/>
+            <property name="standardPackageRegExp" value="^java\."/>
+            <property name="sortImportsInGroupAlphabetically" value="true"/>
+            <property name="separateLineBetweenGroups" value="false"/>
         </module>
         <!-- 普通包和 JDK 导入之间、静态导入之前留空行，javax 和 java 连续排列 -->
         <module name="lonelight.checks.imports.ImportGroupSpacingCheck">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 统一 Java 语法结构的缩进层级 -->
         <module name="Indentation">
-            <property name="severity" value="warning" />
-            <property name="basicOffset" value="4" />
-            <property name="braceAdjustment" value="0" />
-            <property name="caseIndent" value="4" />
-            <property name="throwsIndent" value="4" />
-            <property name="lineWrappingIndentation" value="4" />
-            <property name="arrayInitIndent" value="4" />
+            <property name="severity" value="warning"/>
+            <property name="basicOffset" value="4"/>
+            <property name="braceAdjustment" value="0"/>
+            <property name="caseIndent" value="4"/>
+            <property name="throwsIndent" value="4"/>
+            <property name="lineWrappingIndentation" value="4"/>
+            <property name="arrayInitIndent" value="8"/>
+        </module>
+        <!-- 提示为常见集合预设容量 -->
+        <module name="lonelight.checks.collections.CollectionCapacityCheck">
+            <property name="severity" value="info"/>
         </module>
         <!-- 要求 if、else、for、while 和 do 的受控语句使用花括号 -->
         <module name="NeedBraces">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 左花括号采用行尾风格 -->
         <module name="LeftCurly">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 统一 if/else 和 try/catch/finally 的右花括号及后续关键字位置 -->
         <module name="RightCurly">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 检查逗号、分号、类型转换及指定关键字之后的必要空白 -->
         <module name="WhitespaceAfter">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 检查赋值、运算符、控制流关键字和花括号周围的空白 -->
         <module name="WhitespaceAround">
-            <property name="severity" value="warning" />
-            <property name="allowEmptyConstructors" value="true" />
-            <property name="allowEmptyMethods" value="true" />
-            <property name="allowEmptyTypes" value="true" />
-            <property name="allowEmptyLambdas" value="true" />
+            <property name="severity" value="warning"/>
+            <property name="allowEmptyConstructors" value="true"/>
+            <property name="allowEmptyMethods" value="true"/>
+            <property name="allowEmptyTypes" value="true"/>
+            <property name="allowEmptyLambdas" value="true"/>
         </module>
         <!-- 要求空方法、空类型和其他空体的左花括号前保留空白 -->
         <module name="WhitespaceBeforeEmptyBody">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 检查泛型尖括号周围的空白 -->
         <module name="GenericWhitespace">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 限制同一行相邻语法元素之间出现多个分隔空格 -->
         <module name="SingleSpaceSeparator">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 要求方法名、构造调用等名称与随后的左圆括号直接相接 -->
         <module name="MethodParamPad">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 去掉普通圆括号内侧的多余空格 -->
         <module name="ParenPad">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 去掉强制类型转换圆括号内侧的多余空格 -->
         <module name="TypecastParenPad">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 统一传统 for 中省略迭代表达式时的空白 -->
         <module name="EmptyForIteratorPad">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 去掉逗号、分号、后置递增递减、可变参数标记及标签冒号前的多余空白 -->
         <module name="NoWhitespaceBefore">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 去掉传统 switch 中 case 和 default 冒号前的多余空格 -->
         <module name="NoWhitespaceBeforeCaseDefaultColon">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 用空行分隔包、导入、类型、方法、构造器和初始化块等结构 -->
         <module name="EmptyLineSeparator">
-            <property name="severity" value="warning" />
-            <property name="allowNoEmptyLineBetweenFields" value="true" />
-            <property name="allowMultipleEmptyLines" value="true" />
-            <property name="allowMultipleEmptyLinesInsideClassMembers" value="true" />
+            <property name="severity" value="warning"/>
+            <property name="allowNoEmptyLineBetweenFields" value="true"/>
+            <property name="allowMultipleEmptyLines" value="true"/>
+            <property name="allowMultipleEmptyLinesInsideClassMembers" value="true"/>
         </module>
         <!-- 每行书写一条语句 -->
         <module name="OneStatementPerLine">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 每个变量单独声明 -->
         <module name="MultipleVariableDeclarations">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 统一采用 String[] names 形式的 Java 数组声明风格 -->
         <module name="ArrayTypeStyle">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- long 字面量使用大写 L 后缀 -->
         <module name="UpperEll">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 让 Java 修饰符遵循语言规范建议顺序，注解置于修饰符之前 -->
         <module name="ModifierOrder">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 提示语言语义中已经隐含的多余修饰符 -->
         <module name="RedundantModifier">
-            <property name="severity" value="info" />
+            <property name="severity" value="info"/>
         </module>
         <!-- 检查静态字段、实例字段、构造器和方法的大类排列 -->
         <module name="DeclarationOrder">
-            <property name="severity" value="warning" />
-            <property name="ignoreModifiers" value="true" />
+            <property name="severity" value="warning"/>
+            <property name="ignoreModifiers" value="true"/>
         </module>
         <!-- 约束字段可见性，普通字段默认采用 private 封装 -->
         <module name="VisibilityModifier">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
+            <property name="ignoreAnnotationCanonicalNames"
+                      value="org.junit.Rule, org.junit.ClassRule, com.google.common.annotations.VisibleForTesting,
+                             org.junit.jupiter.api.io.TempDir"/>
         </module>
         <!-- 提示声明与首次使用相距较远的局部变量，帮助缩小阅读范围 -->
         <module name="VariableDeclarationUsageDistance">
-            <property name="severity" value="info" />
-            <property name="allowedDistance" value="12" />
+            <property name="severity" value="info"/>
+            <property name="allowedDistance" value="12"/>
         </module>
         <!-- 要求显式编写的 record 组件访问器标注 @Override -->
         <module name="MissingOverrideOnRecordAccessor">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 限制纯静态工具类构造器的可见性 -->
         <module name="HideUtilityClassConstructor">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
             <property name="ignoreAnnotatedBy"
                       value="SpringBootApplication,
                              org.springframework.boot.autoconfigure.SpringBootApplication,
-                                                        Configuration,
+                             Configuration,
                              org.springframework.context.annotation.Configuration,
-                                                        Component,
+                             Component,
                              org.springframework.stereotype.Component,
-                                                        Service,
+                             Service,
                              org.springframework.stereotype.Service,
-                                                        Controller,
+                             Controller,
                              org.springframework.stereotype.Controller,
-                                                        RestController,
-                             org.springframework.web.bind.annotation.RestController" />
+                             RestController,
+                             org.springframework.web.bind.annotation.RestController"/>
         </module>
         <!-- 提示只有私有构造器等适合封闭继承的类显式声明 final -->
         <module name="FinalClass">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
+        </module>
+        <!-- 提示显式设置传统线程池的资源边界 -->
+        <module name="lonelight.checks.concurrent.ExecutorFactoryCheck">
+            <property name="severity" value="warning"/>
+        </module>
+        <!-- 避免从二进制浮点参数直接构造十进制数 -->
+        <module name="lonelight.checks.numeric.BigDecimalFloatingConstructorCheck">
+            <property name="severity" value="warning"/>
         </module>
         <!-- 禁止声明无参 finalize 方法 -->
         <module name="NoFinalizer">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 报告无意保留的空语句，防止循环或条件后多出的分号改变行为 -->
         <module name="EmptyStatement">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 提示子表达式中的赋值 -->
         <module name="InnerAssignment">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- equals 与 hashCode 成对覆写 -->
         <module name="EqualsHashCode">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 报告使用相等或不等运算符比较字符串字面量的写法 -->
         <module name="StringLiteralEquality">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 识别只定义 equals(本类型) 而缺少 equals(Object) 的错误重载 -->
         <module name="CovariantEquals">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 检查循环体内对控制变量的修改 -->
         <module name="ModifiedControlVariable">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 提示通过匿名类加实例初始化块完成的双大括号初始化 -->
         <module name="AvoidDoubleBraceInitialization">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 提示和 true、false 组合后可直接简化的布尔表达式 -->
         <module name="SimplifyBooleanExpression">
-            <property name="severity" value="info" />
+            <property name="severity" value="info"/>
         </module>
         <!-- 提示 if/else 分别返回 true 和 false 时可直接返回条件 -->
         <module name="SimplifyBooleanReturn">
-            <property name="severity" value="info" />
+            <property name="severity" value="info"/>
         </module>
         <!-- 报告未读取的局部变量 -->
         <module name="UnusedLocalVariable">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 报告未读取的 private 字段 -->
         <module name="UnusedPrivateField">
-            <property name="severity" value="warning" />
-            <property name="ignoreAnnotationCanonicalNames" value="" />
+            <property name="severity" value="warning"/>
+            <property name="ignoreAnnotationCanonicalNames" value=""/>
         </module>
         <!-- 要求空 catch 至少写明忽略异常的原因 -->
         <module name="EmptyCatchBlock">
-            <property name="severity" value="error" />
-            <property name="commentFormat" value="\S" />
-            <property name="exceptionVariableName" value="(?!)" />
+            <property name="severity" value="error"/>
+            <property name="commentFormat" value="\S"/>
+            <property name="exceptionVariableName" value="(?!)"/>
         </module>
         <!-- 报告传统 switch 中缺少终止语句且没有贯穿说明的分支 -->
         <module name="FallThrough">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 要求已有的 default 分支位于 switch 最后 -->
         <module name="DefaultComesLast">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 要求传统 switch 语句显式处理默认分支 -->
         <module name="MissingSwitchDefault">
-            <property name="severity" value="error" />
+            <property name="severity" value="error"/>
         </module>
         <!-- 避免 try、finally、if、else 和 switch 中出现无内容的代码块 -->
         <module name="EmptyBlock">
-            <property name="severity" value="error" />
-            <property name="option" value="text" />
-            <property name="tokens" value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH" />
+            <property name="severity" value="error"/>
+            <property name="option" value="text"/>
+            <property name="tokens" value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH"/>
         </module>
         <!-- 让类型、方法、构造器和字段的声明注解各占一行 -->
         <module name="AnnotationLocation">
-            <property name="severity" value="warning" />
-            <property name="tokens" value="CLASS_DEF, INTERFACE_DEF, RECORD_DEF, ENUM_DEF,                 ANNOTATION_DEF, METHOD_DEF, CTOR_DEF, VARIABLE_DEF" />
-            <property name="allowSamelineSingleParameterlessAnnotation" value="false" />
+            <property name="severity" value="warning"/>
+            <property name="tokens"
+                      value="CLASS_DEF, INTERFACE_DEF, RECORD_DEF, ENUM_DEF, ANNOTATION_DEF, METHOD_DEF, CTOR_DEF, VARIABLE_DEF"/>
+            <property name="allowSamelineSingleParameterlessAnnotation" value="false"/>
         </module>
         <!-- 检查代码行尾的注释 -->
         <module name="TrailingComment">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 禁止用只有等号组成的注释行充当分隔线 -->
         <module name="TodoComment">
-            <property name="severity" value="warning" />
-            <property name="id" value="noCommentDivider" />
-            <property name="format" value="^[ \t]*={3,}[ \t]*$" />
-            <message key="todo.match" value="请用功能说明替代等号分隔线" />
+            <property name="severity" value="warning"/>
+            <property name="id" value="noCommentDivider"/>
+            <property name="format" value="^[ \t]*={3,}[ \t]*$"/>
+            <message key="todo.match" value="请用功能说明替代等号分隔线"/>
         </module>
-        <!-- 提示将待办注释统一写成 TODO: 形式 -->
+        <!-- 检查待办注释的标记格式 -->
         <module name="TodoComment">
-            <property name="severity" value="info" />
-            <property name="id" value="todoMarker" />
-            <property name="format" value="^[ \t]*(?!TODO:)(?i:TODO)\b:?" />
-            <message key="todo.match" value="待办注释请统一使用 TODO: 标记" />
+            <property name="severity" value="info"/>
+            <property name="id" value="todoMarker"/>
+            <property name="format" value="^[ \t]*(?!TODO:)(?i:TODO)\b:?"/>
+            <message key="todo.match" value="待办注释请统一使用 TODO: 标记"/>
+        </module>
+        <!-- 废弃注解和迁移说明配套 -->
+        <module name="MissingDeprecated">
+            <property name="severity" value="warning"/>
         </module>
         <!-- 公开类型应有职责说明 -->
         <module name="MissingJavadocType">
-            <property name="severity" value="warning" />
-            <property name="scope" value="public" />
+            <property name="severity" value="warning"/>
+            <property name="scope" value="public"/>
         </module>
         <!-- 检查已有类型文档的泛型参数标签 -->
         <module name="JavadocType">
-            <property name="severity" value="warning" />
-            <property name="allowMissingParamTags" value="false" />
+            <property name="severity" value="warning"/>
+            <property name="allowMissingParamTags" value="false"/>
         </module>
         <!-- 公开方法和构造器应有文档，框架例外由过滤器处理 -->
         <module name="MissingJavadocMethod">
-            <property name="severity" value="warning" />
-            <property name="scope" value="public" />
-            <property name="allowedAnnotations" value="" />
-            <property name="tokens" value="METHOD_DEF, CTOR_DEF, COMPACT_CTOR_DEF" />
+            <property name="severity" value="warning"/>
+            <property name="scope" value="public"/>
+            <property name="allowedAnnotations" value=""/>
+            <property name="tokens" value="METHOD_DEF, CTOR_DEF, COMPACT_CTOR_DEF"/>
         </module>
         <!-- 核对方法 Javadoc 的参数和返回值标签 -->
         <module name="JavadocMethod">
-            <property name="severity" value="error" />
-            <property name="accessModifiers" value="public, protected, package, private" />
-            <property name="allowMissingParamTags" value="false" />
-            <property name="allowMissingReturnTag" value="false" />
-            <property name="validateThrows" value="false" />
-            <property name="allowedAnnotations" value="" />
-            <property name="tokens" value="METHOD_DEF, CTOR_DEF, COMPACT_CTOR_DEF" />
+            <property name="severity" value="error"/>
+            <property name="accessModifiers" value="public, protected, package, private"/>
+            <property name="allowMissingParamTags" value="false"/>
+            <property name="allowMissingReturnTag" value="false"/>
+            <property name="validateThrows" value="false"/>
+            <property name="allowedAnnotations" value=""/>
+            <property name="tokens" value="METHOD_DEF, CTOR_DEF, COMPACT_CTOR_DEF"/>
         </module>
         <!-- 无同名冲突时导入注解类型并使用短名 -->
         <module name="lonelight.checks.imports.QualifiedAnnotationCheck">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 提示放在无效位置、无法正确关联声明的 Javadoc -->
         <module name="InvalidJavadocPosition">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 要求多行 Javadoc 的正文行保留行首星号 -->
         <module name="JavadocMissingLeadingAsterisk">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 要求 Javadoc 行首星号与后续文字之间有空白 -->
         <module name="JavadocMissingWhitespaceAfterAsterisk">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 让多行 Javadoc 的行首星号和结束标记垂直对齐 -->
         <module name="JavadocLeadingAsteriskAlign">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 多行 Javadoc 的正文从第二行开始 -->
         <module name="JavadocContentLocation">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 检查文档段落之间的空行及 p 标签使用位置 -->
         <module name="JavadocParagraph">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 检查块标签说明，方法返回值说明由 JavadocMethod 检查 -->
         <module name="NonEmptyAtclauseDescription">
-            <property name="severity" value="error" />
-            <property name="javadocTokens" value="PARAM_BLOCK_TAG, THROWS_BLOCK_TAG, EXCEPTION_BLOCK_TAG, DEPRECATED_BLOCK_TAG, SINCE_BLOCK_TAG" />
+            <property name="severity" value="error"/>
+            <property name="javadocTokens"
+                      value="PARAM_BLOCK_TAG, THROWS_BLOCK_TAG, EXCEPTION_BLOCK_TAG, DEPRECATED_BLOCK_TAG, SINCE_BLOCK_TAG"/>
         </module>
         <!-- 要求 Javadoc 正文与块标签组之间空一行 -->
         <module name="RequireEmptyLineBeforeBlockTagGroup">
-            <property name="severity" value="warning" />
+            <property name="severity" value="warning"/>
         </module>
         <!-- 将方法相关 Javadoc 标签按 param、return、throws、deprecated 的相对顺序排列 -->
         <module name="AtclauseOrder">
-            <property name="severity" value="warning" />
-            <property name="tagOrder" value="@param, @return, @throws, @deprecated" />
+            <property name="severity" value="warning"/>
+            <property name="tagOrder" value="@param, @return, @throws, @deprecated"/>
         </module>
         <!-- 收集源码 @SuppressWarnings 中的检查名称和模块 id -->
-        <module name="SuppressWarningsHolder" />
+        <module name="SuppressWarningsHolder"/>
         <!-- 支持使用成对 CHECKSTYLE.OFF 与 CHECKSTYLE.ON 按检查器名称局部豁免 -->
         <module name="SuppressionCommentFilter">
-            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)" />
-            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)" />
-            <property name="checkFormat" value="$1" />
+            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
+            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
+            <property name="checkFormat" value="$1"/>
         </module>
         <!-- 支持使用成对 CHECKSTYLE.OFF 与 CHECKSTYLE.ON 按模块 id 局部豁免 -->
         <module name="SuppressionCommentFilter">
-            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)" />
-            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)" />
-            <property name="idFormat" value="$1" />
+            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
+            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
+            <property name="idFormat" value="$1"/>
         </module>
         <!-- 豁免真实 JUnit 方法命名、覆写文档和 HTTP 方法重复文档 -->
-        <module name="lonelight.checks.framework.FrameworkMethodFilter" />
+        <module name="lonelight.checks.framework.FrameworkMethodFilter"/>
         <!-- 按显式框架注解和 unused 标签过滤未使用字段 -->
         <module name="lonelight.checks.framework.FrameworkFieldUsageFilter">
             <property name="fieldAnnotations"
@@ -520,8 +543,8 @@
                              jakarta.persistence.Column,
                              javax.persistence.Id,
                              javax.persistence.Column,
-                             com.fasterxml.jackson.annotation.JsonProperty" />
-            <property name="typeAnnotations" value="lombok.Data,lombok.Value,lombok.Getter,lombok.Setter" />
+                             com.fasterxml.jackson.annotation.JsonProperty"/>
+            <property name="typeAnnotations" value="lombok.Data,lombok.Value,lombok.Getter,lombok.Setter"/>
         </module>
     </module>
 </module>
