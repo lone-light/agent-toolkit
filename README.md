@@ -28,5 +28,5 @@ Agent 规则、Skills、代码检查规则与工具配置集合。
 
 - Apifox Skills 依赖本机安装的 `apifox` CLI，通用入口为 `apifox-cli`，具体业务按需加载对应专项 Skill。
 - OpenCode 配置适用于 v2；界面插件使用 OpenCode 提供的插件接口。
-- DSH Profile 基于当前桌面端环境，插件版本由锁文件固定；内置 bundle 仍由 DSH 提供。私人 Provider、默认模型选择和登录凭据不收录，恢复后单独配置。
+- DSH Profile 保存桌面端配置快照，插件版本由锁文件固定，内置 bundle 由 DSH 提供。恢复时单独配置私人 Provider、默认模型和登录凭据。
 - `dsh/appearance/wallpaper-settings.json` 是外观设置片段，恢复时合并 `settings`，不整份覆盖壁纸插件配置；壁纸和头像资源另行选择。

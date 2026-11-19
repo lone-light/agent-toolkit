@@ -2,15 +2,15 @@
   "name": "dsh-profile-desktop",
   "private": true,
   "dependencies": {
-    "@deepseek-ai/dsh-subagent-codex": "0.2.1-rc.2",
-    "@michengai/dsh-pua": "1.0.1",
+    "@deepseek-ai/dsh-subagent-codex": "0.2.2-rc.1",
+    "@michengai/dsh-pua": "1.0.8",
     "@smalltailqwq/dsh-client-ui-skin-maid-atelier": "0.1.9",
-    "dsh-better-sidebar": "0.28.0",
-    "dsh-codex-subscription": "3.1.4",
-    "dsh-context": "0.73.3",
-    "dsh-cost-meter": "1.9.26",
-    "dsh-plugin-wallpaper-engine": "1.3.3",
-    "dshmarket": "1.66.47"
+    "dsh-better-sidebar": "0.30.1",
+    "dsh-codex-subscription": "3.2.6",
+    "dsh-context": "0.82.0",
+    "dsh-cost-meter": "1.9.58",
+    "dsh-plugin-wallpaper-engine": "1.4.2",
+    "dshmarket": "1.73.12"
   },
   "dsh": {
     "profile": {
@@ -29,9 +29,10 @@
         "@deepseek-ai/dsh-subagent-codex",
         "@deepseek-ai/dsh-experimental-ralph-bundle",
         "@deepseek-ai/dsh-experimental-cot-translation-bundle",
-        "@michengai/dsh-pua",
+        "dsh-cost-meter",
+        "dsh-context",
         "dsh-codex-subscription",
-        "dsh-cost-meter"
+        "dsh-plugin-wallpaper-engine"
       ]
     }
   }
