@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!-- Lonelight Checks 0.1.0 -->
+<module name="Checker">
+    <property name="charset" value="UTF-8" />
+    <property name="fileExtensions" value="java" />
+    <!-- 应用源码中按检查名称或 id 声明的豁免 -->
+    <module name="SuppressWarningsFilter" />
+    <!-- 跳过构建生成目录，保留正常源码路径 -->
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern" value="^(?!.*[/\\]src[/\\](main|test)[/\\]java[/\\]).*[/\\](target|build|generated-sources|generated-test-sources)[/\\]" />
+    </module>
+    <!-- 测试源码放宽数字、重复字符串、字段说明和接口注解 -->
+    <module name="SuppressionSingleFilter">
+        <property name="files" value="[/\\]src[/\\]test[/\\]java[/\\]" />
+        <property name="checks" value="MagicNumber|MultipleStringLiterals|FieldJavadoc|ControllerApiDocumentation" />
+    </module>
+    <!-- 运行可独立选择的项目约定 -->
+    <module name="TreeWalker">
+        <!-- 提示需提取为常量的数字字面量 -->
+        <module name="MagicNumber">
+            <property name="severity" value="warning" />
+            <property name="ignoreNumbers" value="-1,0,1,2" />
+            <property name="ignoreAnnotation" value="true" />
+            <property name="ignoreHashCodeMethod" value="true" />
+        </module>
+        <!-- 提示同一文件中重复的字符串字面量 -->
+        <module name="MultipleStringLiterals">
+            <property name="severity" value="info" />
+            <property name="allowedDuplicates" value="1" />
+            <property name="ignoreStringsRegexp" value="^&quot;.{0,1}&quot;$" />
+            <property name="ignoreOccurrenceContext" value="ANNOTATION" />
+        </module>
+        <!-- 对象变量使用类型名的小驼峰或带前缀的完整类型名 -->
+        <module name="lonelight.checks.naming.VariableTypeNameCheck">
+            <property name="severity" value="warning" />
+            <property name="ignoredTypes"
+                      value="java.lang.String,
+                             java.lang.Object,
+                             java.lang.Boolean,
+                             java.lang.Byte,
+                             java.lang.Short,
+                             java.lang.Integer,
+                             java.lang.Long,
+                             java.lang.Float,
+                             java.lang.Double,
+                             java.lang.Character,
+                             java.lang.Class,
+                             java.lang.Void,
+                             java.util.Collection,
+                             java.util.List,
+                             java.util.Set,
+                             java.util.Map,
+                             java.util.Queue,
+                             java.util.Deque,
+                             java.util.Optional,
+                             java.lang.Iterable,
+                             java.util.Iterator,
+                             java.util.stream.Stream,
+                             java.util.concurrent.CompletableFuture,
+                             java.util.concurrent.Future,
+                             reactor.core.publisher.Mono,
+                             reactor.core.publisher.Flux" />
+        </module>
+        <!-- 仅检查显式配置的类型后缀映射，默认无映射 -->
+        <module name="lonelight.checks.naming.TypeSuffixCheck">
+            <property name="severity" value="warning" />
+            <property name="mappings" value="${lonelight.typeSuffixMappings}" default="" />
+        </module>
+        <!-- JUnit 方法采用 动作_条件_预期 的命名 -->
+        <module name="lonelight.checks.naming.TestMethodNameCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 布尔实例字段和 record 组件省去 is 前缀 -->
+        <module name="lonelight.checks.naming.BooleanFieldNameCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 单句 Javadoc 也展开，结束标记单独一行 -->
+        <module name="lonelight.checks.javadoc.MultilineJavadocCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 方法 Javadoc 正文行末省去句号，代码片段除外 -->
+        <module name="lonelight.checks.javadoc.MethodJavadocPeriodCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 方法 Javadoc 功能说明省去步骤编号，代码片段除外 -->
+        <module name="lonelight.checks.javadoc.MethodJavadocNumberingCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 实例字段和 record 组件提供说明，显式隐藏字段除外 -->
+        <module name="lonelight.checks.javadoc.FieldJavadocCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 检查标准校验注解的 message 是否缺失或为空白字面量 -->
+        <module name="lonelight.checks.framework.AnnotationAttributeCheck">
+            <property name="severity" value="error" />
+            <property name="attributes"
+                      value="jakarta.validation.constraints.AssertFalse=message,
+                             jakarta.validation.constraints.AssertTrue=message,
+                             jakarta.validation.constraints.DecimalMax=message,
+                             jakarta.validation.constraints.DecimalMin=message,
+                             jakarta.validation.constraints.Digits=message,
+                             jakarta.validation.constraints.Email=message,
+                             jakarta.validation.constraints.Future=message,
+                             jakarta.validation.constraints.FutureOrPresent=message,
+                             jakarta.validation.constraints.Max=message,
+                             jakarta.validation.constraints.Min=message,
+                             jakarta.validation.constraints.Negative=message,
+                             jakarta.validation.constraints.NegativeOrZero=message,
+                             jakarta.validation.constraints.NotBlank=message,
+                             jakarta.validation.constraints.NotEmpty=message,
+                             jakarta.validation.constraints.NotNull=message,
+                             jakarta.validation.constraints.Null=message,
+                             jakarta.validation.constraints.Past=message,
+                             jakarta.validation.constraints.PastOrPresent=message,
+                             jakarta.validation.constraints.Pattern=message,
+                             jakarta.validation.constraints.Positive=message,
+                             jakarta.validation.constraints.PositiveOrZero=message,
+                             jakarta.validation.constraints.Size=message,
+                             javax.validation.constraints.AssertFalse=message,
+                             javax.validation.constraints.AssertTrue=message,
+                             javax.validation.constraints.DecimalMax=message,
+                             javax.validation.constraints.DecimalMin=message,
+                             javax.validation.constraints.Digits=message,
+                             javax.validation.constraints.Email=message,
+                             javax.validation.constraints.Future=message,
+                             javax.validation.constraints.FutureOrPresent=message,
+                             javax.validation.constraints.Max=message,
+                             javax.validation.constraints.Min=message,
+                             javax.validation.constraints.Negative=message,
+                             javax.validation.constraints.NegativeOrZero=message,
+                             javax.validation.constraints.NotBlank=message,
+                             javax.validation.constraints.NotEmpty=message,
+                             javax.validation.constraints.NotNull=message,
+                             javax.validation.constraints.Null=message,
+                             javax.validation.constraints.Past=message,
+                             javax.validation.constraints.PastOrPresent=message,
+                             javax.validation.constraints.Pattern=message,
+                             javax.validation.constraints.Positive=message,
+                             javax.validation.constraints.PositiveOrZero=message,
+                             javax.validation.constraints.Size=message" />
+        </module>
+        <!-- 按 REST 接口签名检查操作、参数和请求响应模型的说明注解 -->
+        <module name="lonelight.checks.framework.ControllerApiDocumentationCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- REST 映射返回可识别持久化类型时提示边界风险 -->
+        <module name="lonelight.checks.framework.ControllerEntityReturnCheck">
+            <property name="severity" value="warning" />
+            <property name="entityPattern" value=".*\.entity\..*" />
+        </module>
+        <!-- Controller 避免持久层声明依赖，Service 避免 HTTP 声明依赖 -->
+        <module name="lonelight.checks.framework.LayerDependencyCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 禁止普通或静态导入 Spring 和 Apache Commons 的 BeanUtils -->
+        <module name="IllegalImport">
+            <property name="severity" value="error" />
+            <property name="id" value="reflectionCopyImports" />
+            <property name="regexp" value="true" />
+            <property name="illegalPkgs" value="" />
+            <property name="illegalClasses"
+                      value="^org\.springframework\.beans\.BeanUtils(?:\..*)?$,^org\.apache\.commons\.beanutils\.BeanUtils(?:\..*)?$" />
+        </module>
+        <!-- 禁止用全限定类名调用 BeanUtils -->
+        <module name="lonelight.checks.framework.BeanUtilsCallCheck">
+            <property name="severity" value="error" />
+        </module>
+        <!-- SLF4J 动态日志消息采用占位符 -->
+        <module name="lonelight.checks.framework.LoggingPlaceholderCheck">
+            <property name="severity" value="warning" />
+        </module>
+        <!-- 收集当前文件中的局部豁免 -->
+        <module name="SuppressWarningsHolder" />
+        <!-- 允许成对标记对局部范围豁免检查 -->
+        <module name="SuppressionCommentFilter">
+            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)" />
+            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)" />
+            <property name="checkFormat" value="$1" />
+        </module>
+    </module>
+</module>
