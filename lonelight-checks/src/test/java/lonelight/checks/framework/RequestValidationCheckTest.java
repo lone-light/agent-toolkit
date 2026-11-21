@@ -1,8 +1,11 @@
 package lonelight.checks.framework;
 
+import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import lonelight.checks.CheckTestSupport;
 import lonelight.checks.CustomCheckTest;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -46,6 +49,52 @@ class RequestValidationCheckTest extends CustomCheckTest {
                     void helper(Input input) {}
                 }
                 """, 4);
+    }
+
+    /**
+     * 验证成员 record 上的显式访问器，并区分普通方法返回值约束
+     */
+    @Test
+    void scan_recordGetters_checksBeanProperties() throws Exception {
+        var file = CheckTestSupport.write(directoryPath, "Orders.java", """
+                package app.web;
+                import jakarta.validation.constraints.AssertTrue;
+                import jakarta.validation.constraints.NotBlank;
+                import org.springframework.web.bind.annotation.PostMapping;
+                import org.springframework.web.bind.annotation.RequestBody;
+                import org.springframework.web.bind.annotation.RestController;
+
+                @RestController class Orders {
+                    @PostMapping("/reference")
+                    String create(@RequestBody Payload.Order order) { return order.reference(); }
+
+                    @PostMapping("/status")
+                    String status(@RequestBody Status status) { return status.state(); }
+
+                    @PostMapping("/verification")
+                    boolean verify(@RequestBody Verification verification) { return verification.active(); }
+
+                    static class Payload {
+                        record Order(String reference) {
+                            @NotBlank(message = "订单编号不能为空")
+                            public String getReference() { return reference; }
+                        }
+                    }
+
+                    record Status(String state) {
+                        @NotBlank(message = "状态不能为空")
+                        public String isCurrent() { return state; }
+                    }
+
+                    record Verification(boolean active) {
+                        @AssertTrue(message = "状态必须有效")
+                        public boolean isActive() { return active; }
+                    }
+                }
+                """);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), file).stream()
+                .filter(event -> CheckTestSupport.matches(event, RequestValidationCheck.class.getName())).toList();
+        assertEquals(List.of(10, 16), events.stream().map(AuditEvent::getLine).toList());
     }
 
     /**

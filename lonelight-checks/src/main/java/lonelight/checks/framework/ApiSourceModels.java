@@ -240,13 +240,12 @@ final class ApiSourceModels {
      * @return 解析到的模型，缺失或有歧义时为 null
      */
     Model find(String written, JavaSource source, DetailAST context) {
-        if (written.indexOf('.') < 0) {
-            for (DetailAST owner = JavaSource.enclosingType(context); owner != null; owner = JavaSource.enclosingType(owner)) {
-                String ownerName = qualifiedName(source.packageName(), owner);
-                Model nested = findCanonical(ownerName + "." + written);
-                if (nested != null) {
-                    return nested;
-                }
+        for (DetailAST owner = JavaSource.enclosingType(context); owner != null;
+             owner = JavaSource.enclosingType(owner)) {
+            String ownerName = qualifiedName(source.packageName(), owner);
+            Model nested = findCanonical(ownerName + "." + written);
+            if (nested != null) {
+                return nested;
             }
         }
         List<String> candidates = source.sourceTypeNames(written);
@@ -294,7 +293,7 @@ final class ApiSourceModels {
      * @param name 模型的全限定名
      * @return 查找到的模型，缺失时为 null
      */
-    private Model findCanonical(String name) {
+    Model findCanonical(String name) {
         Model current = currentModels.get(name);
         if (current != null || sourceRoot == null) {
             return current;

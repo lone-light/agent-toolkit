@@ -87,10 +87,10 @@ public final class LayerDependencyCheck extends RuleCheck {
             return;
         }
         Pattern forbidden = null;
-        if (source.hasAnnotation(owner, "org.springframework.web.bind.annotation.RestController")
-                || source.hasAnnotation(owner, "org.springframework.stereotype.Controller")) {
+        if (source.hasKnownAnnotation(owner, FrameworkMethods.WEB + "RestController")
+                || source.hasKnownAnnotation(owner, "org.springframework.stereotype.Controller")) {
             forbidden = controllerForbidden;
-        } else if (source.hasAnnotation(owner, "org.springframework.stereotype.Service")) {
+        } else if (source.hasKnownAnnotation(owner, "org.springframework.stereotype.Service")) {
             forbidden = serviceForbidden;
         }
         if (forbidden != null) {

@@ -141,4 +141,32 @@ class CombinedRulesTest {
         assertTrue(events.stream().anyMatch(event -> CheckTestSupport.matches(event, "CatchParameterName")));
         assertTrue(events.stream().anyMatch(event -> CheckTestSupport.matches(event, "JavadocMethod")));
     }
+
+    /**
+     * 验证两份完整配置都接受带说明的行内返回标签
+     */
+    @Test
+    void scan_inlineReturnTag_passesBothProfiles() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
+                package sample;
+
+                /**
+                 * 示例
+                 *
+                 * @author lonelight
+                 */
+                public class Example {
+                    /**
+                     * {@return the total}
+                     */
+                    public int total() {
+                        return 0;
+                    }
+                }
+                """);
+        for (String profile : List.of("lonelight-base", "lonelight-project")) {
+            var events = CheckTestSupport.scan(CheckTestSupport.load(profile), filePath);
+            assertTrue(events.isEmpty(), () -> profile + events.stream().map(AuditEvent::getMessage).toList());
+        }
+    }
 }

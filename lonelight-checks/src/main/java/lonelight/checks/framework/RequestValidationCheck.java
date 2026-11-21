@@ -9,6 +9,7 @@ import lonelight.checks.RuleCheck;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * 提示在接口入口启用可识别的请求模型校验
@@ -41,10 +42,18 @@ public final class RequestValidationCheck extends RuleCheck {
      * @return 为无参的非静态 getter 时为 true
      */
     private static boolean isGetter(DetailAST memberDetailAST) {
+        if (memberDetailAST.getType() != TokenTypes.METHOD_DEF || JavaSource.isExplicitlyStatic(memberDetailAST)) {
+            return false;
+        }
         var parameters = memberDetailAST.findFirstToken(TokenTypes.PARAMETERS);
-        return memberDetailAST.getType() == TokenTypes.METHOD_DEF && !JavaSource.isExplicitlyStatic(memberDetailAST)
-                && parameters != null && !parameters.hasChildren()
-                && JavaSource.declarationName(memberDetailAST).getText().matches("(?:get|is)[A-Z].*");
+        var returnType = memberDetailAST.findFirstToken(TokenTypes.TYPE);
+        if (parameters == null || parameters.hasChildren()
+                || returnType == null || returnType.findFirstToken(TokenTypes.LITERAL_VOID) != null) {
+            return false;
+        }
+        String name = JavaSource.declarationName(memberDetailAST).getText();
+        return name.matches("get[A-Z].*")
+                || returnType.findFirstToken(TokenTypes.LITERAL_BOOLEAN) != null && name.matches("is[A-Z].*");
     }
 
     /**
@@ -163,13 +172,14 @@ public final class RequestValidationCheck extends RuleCheck {
         if (hasConstraint(model.tree(), model.source())) {
             return true;
         }
-        for (var memberDetailAST : ApiSourceModels.members(model.tree())) {
-            if ((JavaSource.isInstanceFieldOrComponent(memberDetailAST) || isGetter(memberDetailAST))
-                    && hasConstrainedMember(memberDetailAST, model.source())) {
-                return true;
-            }
+        var members = ApiSourceModels.members(model.tree()).stream();
+        if (kind == TokenTypes.RECORD_DEF) {
+            var body = model.tree().findFirstToken(TokenTypes.OBJBLOCK);
+            members = Stream.concat(members, JavaSource.children(body).stream());
         }
-        return hasConstrainedParents(model, TokenTypes.EXTENDS_CLAUSE, visited)
+        return members.anyMatch(member -> (JavaSource.isInstanceFieldOrComponent(member) || isGetter(member))
+                && hasConstrainedMember(member, model.source()))
+                || hasConstrainedParents(model, TokenTypes.EXTENDS_CLAUSE, visited)
                 || hasConstrainedParents(model, TokenTypes.IMPLEMENTS_CLAUSE, visited);
     }
 

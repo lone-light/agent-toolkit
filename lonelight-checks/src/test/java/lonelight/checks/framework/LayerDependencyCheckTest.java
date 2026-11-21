@@ -34,4 +34,36 @@ class LayerDependencyCheckTest extends CustomCheckTest {
         verify(LayerDependencyCheck.class, controller
                 + "class Example { void get(UserMapper... mappers) {} }", 1);
     }
+
+    /**
+     * 验证多组通配导入下的控制器注解及同名声明的作用域
+     */
+    @Test
+    void scan_wildcardImports_recognizesOnlyKnownController() throws Exception {
+        verify(LayerDependencyCheck.class, """
+                import app.mapper.UserMapper;
+                import org.springframework.web.bind.annotation.*;
+
+                import java.util.*;
+
+                @RestController
+                class Example {
+                    List<UserMapper> userMappers;
+                }
+                """, 1);
+        verify(LayerDependencyCheck.class, """
+                import app.mapper.UserMapper;
+                import org.springframework.web.bind.annotation.*;
+
+                import java.util.*;
+
+                class Example {
+                    @interface RestController {}
+
+                    @RestController class Local {
+                        List<UserMapper> userMappers;
+                    }
+                }
+                """, 0);
+    }
 }

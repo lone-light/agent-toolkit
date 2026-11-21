@@ -123,7 +123,7 @@
 | `MissingJavadocType` | warning | 检查公开类型是否有 Javadoc |
 | `JavadocType` | warning | 核对已有类型 Javadoc 中与泛型参数、record 组件对应的 `@param` 标签 |
 | `MissingJavadocMethod` | warning | 公开方法和构造器应有文档，框架例外由过滤器处理 |
-| `JavadocMethod` | error | 核对已有方法和构造器 Javadoc 中的 `@param` 和 `@return` 标签，适用于各访问级别 |
+| `JavadocMethod` | error | 核对已有方法和构造器 Javadoc 中的 `@param` 和 `@return` 标签，接受 `{@return ...}`，适用于各访问级别 |
 | `InvalidJavadocPosition` | warning | 提示放在无效位置、无法正确关联声明的 Javadoc |
 | `JavadocMissingLeadingAsterisk` | warning | 要求多行 Javadoc 的正文行保留行首星号 |
 | `JavadocMissingWhitespaceAfterAsterisk` | warning | 要求 Javadoc 行首星号与后续文字之间有空白 |
@@ -181,7 +181,7 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 | `javadoc.TypeJavadocCheck` | warning | 类型 Javadoc 的职责说明占一行，`@author` 填写非空内容。通用配置报告公开类型缺少 Javadoc，项目配置报告非公开类型缺少 Javadoc |
 
 - 单句 Javadoc 的 `/**`、正文和 `*/` 各占一行。句号和步骤编号检查跳过 `{@code}`、`{@literal}`、HTML `code`、`pre` 和 HTML 注释。
-- 字段说明可用非空 Javadoc 或 `@Schema.description`。record 组件也可用所属类型 Javadoc 中带说明的同名 `@param`。`@JsonIgnore` 启用时和 `@Schema(hidden = true)` 均可豁免字段说明检查。
+- 字段说明可用非空 Javadoc 或 `@Schema.description`。record 组件也可用所属类型 Javadoc 中带说明的同名 `@param`。`@JsonIgnore` 启用时和 `@Schema(hidden = true)` 均可豁免字段说明检查。启用通用配置时，已有 record Javadoc 中的组件 `@param` 仍由 `JavadocType` 检查。
 
 ### 2.3 校验注解
 
@@ -190,9 +190,9 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 | `framework.AnnotationAttributeCheck` | error | 检查 XML 所列 Jakarta 和 `javax` 校验注解的 `message` |
 | `framework.RequestValidationCheck` | warning | REST 请求参数的模型声明了可识别的 Bean Validation 约束或级联校验时，参数标注 `@Valid` 或 `@Validated` |
 
-- 缺少 `message` 或静态可判定为空白时报告。检查范围包括字符串字面量、字面量拼接和文本块。常量引用按已填写处理。
+- 缺少 `message` 或静态可判定为空白时报告。检查范围包括字符串字面量、字面量拼接和文本块。常量引用按已填写处理。通配导入的短名还会核对同一源码根下的同包类型。
 - `attributes` 使用 `注解全限定名=属性`，例如 `com.example.Log=value,com.example.Log=category`。同一注解可配置多个属性，外层与嵌套注解分别检查。
-- 请求校验检查 `@RequestBody`、`@ModelAttribute`、`@RequestPart` 和可解析的隐式对象参数。检查模型及其父类型、实例字段、record 组件和 getter 上的约束。支持标准约束和能定位到源码的 `@Constraint` 自定义注解。集合、数组和框架注入参数跳过。[Spring MVC 校验](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-validation.html)
+- 请求校验检查 `@RequestBody`、`@ModelAttribute`、`@RequestPart` 和可解析的隐式对象参数。检查模型、父类型、实例字段、record 组件和显式声明的 JavaBean getter 上的约束。支持标准约束和能定位到源码的 `@Constraint` 自定义注解。集合、数组和框架注入参数跳过。[Spring MVC 校验](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-validation.html)
 
 ### 2.4 接口注解
 
@@ -225,7 +225,7 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 | `IllegalImport#reflectionCopyImports` | error | 禁止普通或静态导入 Spring 和 Apache Commons 的 `BeanUtils` |
 | `framework.BeanUtilsCallCheck` | error | 禁止用全限定类名调用 Spring 和 Apache Commons 的 `BeanUtils` |
 
-两项分层检查都读取声明类型，包括数组元素和泛型参数。`LayerDependencyCheck` 检查字段、局部变量、参数、返回值和 record 组件。Controller 和 Service 的类型限制分别通过 `controllerForbidden` 和 `serviceForbidden` 配置。
+两项分层检查都读取声明类型，包括数组元素和泛型参数。类型名按显式导入、当前包和源码中的全限定名匹配。来自其他包的 Mapper 或 Entity 使用显式导入时可定位。`LayerDependencyCheck` 检查字段、局部变量、参数、返回值和 record 组件。Controller 和 Service 的类型限制分别通过 `controllerForbidden` 和 `serviceForbidden` 配置。
 
 构造器检查支持明确标注的注入构造器、可识别 Spring 组件中唯一的手写构造器，以及 `@RequiredArgsConstructor` 覆盖的未初始化 `final` 或 `@NonNull` 字段。手写构造器检查直接将参数赋给字段的语句。同一字段同时使用字段注入和构造器赋值时，优先报告字段注入。`@Value` 配置值可单独注入。[Lombok 构造器](https://projectlombok.org/features/constructor) · [Spring 构造器注入](https://docs.spring.io/spring-framework/reference/core/beans/annotation-config/autowired.html)
 

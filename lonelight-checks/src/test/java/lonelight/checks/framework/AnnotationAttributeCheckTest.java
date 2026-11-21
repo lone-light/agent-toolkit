@@ -93,6 +93,51 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
     }
 
     /**
+     * 验证同包声明优先于通配导入，显式导入仍可引用标准注解
+     */
+    @Test
+    void scan_samePackageAnnotation_precedesWildcardImport() throws Exception {
+        CheckTestSupport.write(directoryPath, "NotNull.java", """
+                package app.api;
+                public @interface NotNull {}
+                """);
+        Path localPath = CheckTestSupport.write(directoryPath, "LocalInput.java", """
+                package app.api;
+                import jakarta.validation.constraints.*;
+                public record LocalInput(@NotNull String value) {}
+                """);
+        Path explicitPath = CheckTestSupport.write(directoryPath, "ExplicitInput.java", """
+                package app.api;
+                import jakarta.validation.constraints.NotNull;
+                public record ExplicitInput(@NotNull String value) {}
+                """);
+        Path memberPath = CheckTestSupport.write(directoryPath, "MemberInput.java", """
+                package app.api;
+                public class MemberInput {
+                    @interface NotNull { String message() default ""; }
+
+                    @NotNull String value;
+                }
+                """);
+        Path wildcardPath = CheckTestSupport.write(directoryPath, "WildcardInput.java", """
+                package app.web;
+                import jakarta.validation.constraints.*;
+                import java.util.*;
+                public record WildcardInput(
+                    @NotNull String value,
+                    @NotNull(message = "请输入标签") List<String> labels
+                ) {}
+                """);
+        var check = CheckTestSupport.rule(AnnotationAttributeCheck.class.getName(),
+                "attributes", "jakarta.validation.constraints.NotNull=message,app.api.MemberInput.NotNull=message");
+        var configuration = CheckTestSupport.isolate(check, true);
+        var files = List.of(localPath, explicitPath, memberPath, wildcardPath);
+        var events = CheckTestSupport.scan(configuration, files, getClass().getClassLoader());
+        assertEquals(List.of(explicitPath, memberPath, wildcardPath),
+                events.stream().map(AuditEvent::getFileName).map(Path::of).sorted().toList());
+    }
+
+    /**
      * 核对主题样例能触发配置中的每种校验注解及四种空白值
      */
     @Test

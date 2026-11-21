@@ -38,4 +38,29 @@ class FieldJavadocCheckTest extends CustomCheckTest {
         verify(FieldJavadocCheck.class, "class Example { /** */ String name; }", 1);
         verify(FieldJavadocCheck.class, "class Example { @com.fasterxml.jackson.annotation.JsonIgnore(false) String name; }", 1);
     }
+
+    /**
+     * 验证多组通配导入下的标准注解与同名成员注解
+     */
+    @Test
+    void scan_wildcardImports_recognizesOnlyKnownAnnotations() throws Exception {
+        verify(FieldJavadocCheck.class, """
+                import com.fasterxml.jackson.annotation.*;
+                import io.swagger.v3.oas.annotations.media.*;
+
+                class Example {
+                    @JsonIgnore String secret;
+                    @Schema(description = "名称") String name;
+                }
+                """, 0);
+        verify(FieldJavadocCheck.class, """
+                import com.fasterxml.jackson.annotation.*;
+                import io.swagger.v3.oas.annotations.media.*;
+
+                class Example {
+                    @interface Schema { String description(); }
+                    @Schema(description = "同名注解") String name;
+                }
+                """, 1);
+    }
 }

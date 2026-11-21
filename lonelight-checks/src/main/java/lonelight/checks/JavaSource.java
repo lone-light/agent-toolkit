@@ -5,6 +5,7 @@ import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -554,14 +555,27 @@ public final class JavaSource {
      * @return 源码中的注解匹配已知类型时为 true
      */
     public boolean isKnownAnnotationType(DetailAST annotation, String canonical) {
-        String written = annotationName(annotation);
+        return isKnownAnnotationType(annotation, canonical, ignored -> false);
+    }
+
+    /**
+     * 识别已知注解，并区分同包类型与按需导入
+     *
+     * @param annotationDetailAST  注解节点
+     * @param canonical            注解的全限定名
+     * @param packageTypePredicate 判断本包中是否存在传入短名的类型
+     * @return 源码中的注解匹配已知类型时为 true
+     */
+    public boolean isKnownAnnotationType(DetailAST annotationDetailAST, String canonical,
+                                         Predicate<String> packageTypePredicate) {
+        String written = annotationName(annotationDetailAST);
         if (written.contains(".")) {
             return resolve(written).equals(canonical);
         }
         if (!written.equals(simpleName(canonical))) {
             return false;
         }
-        var visible = visibleType(annotation, written);
+        var visible = visibleType(annotationDetailAST, written);
         if (visible != null) {
             return visible.getType() == TokenTypes.ANNOTATION_DEF && canonical.equals(declaredTypeName(visible));
         }
@@ -570,7 +584,8 @@ public final class JavaSource {
             return imported.equals(canonical);
         }
         String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
-        return qualifier.equals(packageName) || qualifier.equals("java.lang") || wildcardImports.contains(qualifier);
+        return qualifier.equals(packageName) || (qualifier.equals("java.lang") || wildcardImports.contains(qualifier))
+                && !packageTypePredicate.test(written);
     }
 
     /**

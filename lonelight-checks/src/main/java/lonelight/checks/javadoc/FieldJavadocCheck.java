@@ -103,12 +103,11 @@ public final class FieldJavadocCheck extends RuleCheck {
      * @return 注解提供有效说明或隐藏字段时为 true
      */
     private boolean documentsOrHides(DetailAST annotationDetailAST) {
-        String name = JavaSource.annotationName(annotationDetailAST);
-        if (source.isType(name, "com.fasterxml.jackson.annotation.JsonIgnore")) {
+        if (source.isKnownAnnotationType(annotationDetailAST, "com.fasterxml.jackson.annotation.JsonIgnore")) {
             var value = JavaSource.attribute(annotationDetailAST, "value");
             return value == null || value.findFirstToken(TokenTypes.LITERAL_TRUE) != null;
         }
-        if (!source.isType(name, "io.swagger.v3.oas.annotations.media.Schema")) {
+        if (!source.isKnownAnnotationType(annotationDetailAST, "io.swagger.v3.oas.annotations.media.Schema")) {
             return false;
         }
         var hidden = JavaSource.attribute(annotationDetailAST, "hidden");

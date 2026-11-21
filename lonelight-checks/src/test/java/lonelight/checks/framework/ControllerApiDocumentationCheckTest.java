@@ -120,6 +120,33 @@ class ControllerApiDocumentationCheckTest {
     }
 
     /**
+     * 验证带短限定名的成员模型可用于请求和响应
+     */
+    @Test
+    void scan_shortQualifiedMemberModel_checksFieldDescription() throws Exception {
+        Path sourcePath = write("Orders.java", """
+                package app.web;
+                import io.swagger.v3.oas.annotations.Operation;
+                import org.springframework.web.bind.annotation.PostMapping;
+                import org.springframework.web.bind.annotation.RequestBody;
+                import org.springframework.web.bind.annotation.RestController;
+
+                @RestController class Orders {
+                    @PostMapping
+                    @Operation(summary = "创建订单")
+                    Payload.Order create(@RequestBody Payload.Order order) { return order; }
+
+                    static class Payload {
+                        record Order(String reference) {}
+                    }
+                }
+                """);
+        var events = projectEvents(sourcePath);
+        assertEquals(1, events.size(), () -> messages(events).toString());
+        assertEquals(1, count(events, "app.web.Orders.Payload.Order 的字段 reference"));
+    }
+
+    /**
      * 验证参数别名说明和显式隐藏接口受到支持
      */
     @Test
