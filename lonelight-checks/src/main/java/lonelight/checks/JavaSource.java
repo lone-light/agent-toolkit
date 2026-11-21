@@ -563,7 +563,7 @@ public final class JavaSource {
         }
         var visible = visibleType(annotation, written);
         if (visible != null) {
-            return canonical.equals(declaredTypeName(visible));
+            return visible.getType() == TokenTypes.ANNOTATION_DEF && canonical.equals(declaredTypeName(visible));
         }
         String imported = imports.get(written);
         if (imported != null) {
@@ -596,15 +596,12 @@ public final class JavaSource {
     }
 
     /**
-     * 找出顶层或成员注解的全限定名
+     * 读取顶层类型或成员类型的全限定名
      *
-     * @param declaration 可见的同名类型声明
-     * @return 注解的全限定名，其他类型或局部声明返回空字符串
+     * @param declaration 类型声明节点
+     * @return 全限定名，局部类型或匿名类内的类型返回空字符串
      */
-    private String declaredTypeName(DetailAST declaration) {
-        if (declaration.getType() != TokenTypes.ANNOTATION_DEF) {
-            return "";
-        }
+    public String declaredTypeName(DetailAST declaration) {
         Deque<String> names = new ArrayDeque<>();
         names.addFirst(declarationName(declaration).getText());
         DetailAST scope = declaration.getParent();

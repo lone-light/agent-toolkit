@@ -74,9 +74,16 @@ public final class TypeSuffixCheck extends RuleCheck {
      */
     @Override
     public void visitToken(DetailAST node) {
+        if (mappings.isEmpty()) {
+            return;
+        }
+        String declaredName = source.declaredTypeName(node);
+        if (declaredName.isEmpty()) {
+            return;
+        }
         DetailAST name = JavaSource.declarationName(node);
         for (Map.Entry<Pattern, String[]> mapping : mappings.entrySet()) {
-            if (mapping.getKey().matcher(source.resolve(name.getText())).matches()
+            if (mapping.getKey().matcher(declaredName).matches()
                     && Arrays.stream(mapping.getValue()).noneMatch(name.getText()::endsWith)) {
                 log(name, "type.suffix", String.join(" / ", mapping.getValue()));
             }

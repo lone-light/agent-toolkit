@@ -153,12 +153,12 @@ class PackagedRulesIT {
      * 核对两套校验注解、四种空白提示和同名注解的扫描结果
      *
      * @param events           完整项目约定的扫描结果
-     * @param rule             注解属性配置
+     * @param locatedRule      注解属性配置
      * @param sampleSourcePath 测试项目源码目录
      * @throws CheckstyleException 读取注解属性配置失败时
      * @throws IOException 样例读取失败时
      */
-    private static void verifyValidationExamples(List<AuditEvent> events, CheckTestSupport.LocatedRule rule,
+    private static void verifyValidationExamples(List<AuditEvent> events, CheckTestSupport.LocatedRule locatedRule,
                                                  Path sampleSourcePath) throws CheckstyleException, IOException {
         Path sourcePath = sampleSourcePath.resolve("main/java/project/ValidationAnnotations.java");
         var lines = Files.readAllLines(sourcePath);
@@ -166,7 +166,7 @@ class PackagedRulesIT {
                 && CheckTestSupport.matches(event, ANNOTATION_ATTRIBUTE)).toList();
         var recordAnnotations = findings.stream()
                 .filter(event -> !lines.get(event.getLine() - 1).contains("message =")).toList();
-        var configuredAttributes = rule.configuration().getProperty("attributes").split(",");
+        var configuredAttributes = locatedRule.configuration().getProperty("attributes").split(",");
         assertEquals(configuredAttributes.length, recordAnnotations.size());
         for (String attribute : configuredAttributes) {
             String annotationName = attribute.strip().split("=", 2)[0];

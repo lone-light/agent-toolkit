@@ -162,7 +162,7 @@
 <property name="aliases" value="com.fasterxml.jackson.databind.ObjectMapper=mapper" />
 ```
 
-`lonelight.typeSuffixMappings` 接收 `全限定类型名正则=后缀|后缀` 格式的映射。逗号分隔映射，正则中的逗号也会被当作分隔符。正则匹配完整的类型名，命中的每条映射分别检查。属性留空时跳过后缀检查。
+`lonelight.typeSuffixMappings` 接收 `全限定类型名正则=后缀|后缀` 格式的映射。逗号分隔映射，正则中的逗号也会被当作分隔符。检查有全限定名的类型，成员类型包含外层类型名，例如 `com.example.dto.Order.Item`。命中的每条映射分别检查。属性留空时跳过后缀检查。
 
 例如在 IDEA 的 `Edit Properties` 中，将 `lonelight.typeSuffixMappings` 设为 `com\.example\.dto\..*=DTO|Request|Query`，即可检查 `com.example.dto` 下的类型。
 

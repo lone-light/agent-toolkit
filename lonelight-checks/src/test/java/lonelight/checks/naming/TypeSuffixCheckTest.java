@@ -32,6 +32,34 @@ class TypeSuffixCheckTest extends CustomCheckTest {
     }
 
     /**
+     * 验证成员类型的限定名、同名导入及局部类型的检查范围
+     */
+    @Test
+    void scan_nestedDeclarations_matchesQualifiedDeclarationNames() throws Exception {
+        String source = """
+                package sample.dto;
+
+                import java.util.List;
+
+                class Order {
+                    static class List {}
+
+                    void prepare() {
+                        class Local {}
+                    }
+                }
+
+                @interface Archive {
+                    class List {}
+                }
+                """;
+        verify(TypeSuffixCheck.class, source, 1, "mappings", "sample\\.dto\\.Order\\.List=DTO");
+        verify(TypeSuffixCheck.class, source, 1, "mappings", "sample\\.dto\\.Archive\\.List=View");
+        verify(TypeSuffixCheck.class, source, 0, "mappings", "java\\.util\\.List=DTO");
+        verify(TypeSuffixCheck.class, source, 3, "mappings", "sample\\.dto\\..*=DTO");
+    }
+
+    /**
      * 验证长后缀列表可加载并拒绝空项和非法字符
      */
     @Test
