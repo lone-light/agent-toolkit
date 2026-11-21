@@ -3,32 +3,23 @@
 
 package project;
 
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.RepeatedTest;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestFactory;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.*;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
+/**
+ * 对照 JUnit Jupiter 入口和同名自定义注解的方法命名
+ *
+ * @author lonelight
+ */
 class JUnitNamingCases {
-    // 测试目录放宽字段说明、数字字面量和重复字符串检查
-    private int fixtureLimit = 42;
-
-    String expectedLabels(boolean complete) {
-        return complete ? "测试订单" : "测试订单";
-    }
     @Test
     void subtotal() { }
 
     @Test
     void subtotal_validOrder_returnsAmount() { }
-
-    // 命名规则认可的其他 JUnit 入口
-    @org.junit.Test
-    public void legacySubtotal() { }
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2})
@@ -45,10 +36,20 @@ class JUnitNamingCases {
     @TestTemplate
     void subtotalTemplate() { }
 
+    /**
+     * 声明同名注解供普通方法使用
+     *
+     * @author lonelight
+     */
     static class LocalCases {
+        /**
+         * 标记普通方法
+         *
+         * @author lonelight
+         */
         @interface Test { }
 
-        @LocalCases.Test
+        @Test
         void helper() { }
     }
 }

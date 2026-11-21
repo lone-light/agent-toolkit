@@ -117,11 +117,29 @@ class FiltersTest {
      */
     @Test
     void scan_testSources_appliesConfiguredExemptions() throws Exception {
-        Path filePath = CheckTestSupport.write(directoryPath.resolve("src/test/java"), "Example.java",
-                "class Example { private int count = 42; void run() { use(\"repeated\"); use(\"repeated\"); } }");
-        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), filePath);
-        for (String name : List.of("MagicNumber", "MultipleStringLiterals", "lonelight.checks.javadoc.FieldJavadocCheck")) {
-            assertTrue(events.stream().noneMatch(event -> CheckTestSupport.matches(event, name)), name);
+        String source = """
+                import org.springframework.web.bind.annotation.GetMapping;
+                import org.springframework.web.bind.annotation.RestController;
+
+                @RestController
+                class Example {
+                    private int count = 42;
+
+                    @GetMapping
+                    String status() { return "repeated"; }
+
+                    String fallback() { return "repeated"; }
+                }
+                """;
+        Path mainPath = CheckTestSupport.write(directoryPath.resolve("src/main/java"), "Example.java", source);
+        Path testPath = CheckTestSupport.write(directoryPath.resolve("src/test/java"), "Example.java", source);
+        var configuration = CheckTestSupport.load("lonelight-project");
+        var mainEvents = CheckTestSupport.scan(configuration, mainPath);
+        var testEvents = CheckTestSupport.scan(configuration, testPath);
+        assertTrue(testEvents.stream().anyMatch(event -> CheckTestSupport.matches(event, "TypeJavadoc")));
+        for (String name : List.of("MagicNumber", "MultipleStringLiterals", "FieldJavadoc", "ControllerApiDocumentation")) {
+            assertTrue(mainEvents.stream().anyMatch(event -> CheckTestSupport.matches(event, name)), name);
+            assertTrue(testEvents.stream().noneMatch(event -> CheckTestSupport.matches(event, name)), name);
         }
     }
 }

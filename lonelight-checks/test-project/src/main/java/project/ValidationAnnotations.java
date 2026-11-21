@@ -4,30 +4,10 @@
 
 package project;
 
-import jakarta.validation.constraints.AssertFalse;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Negative;
-import jakarta.validation.constraints.NegativeOrZero;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Null;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.PastOrPresent;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.*;
 
 class ValidationAnnotations {
     private static final String REQUIRED = "请填写内容";
@@ -68,7 +48,7 @@ class ValidationAnnotations {
             @Past
             LocalDate birthDate,
             @PastOrPresent
-            LocalDate createdOn,
+            Instant createdAtInstant,
             @Pattern(regexp = "[A-Z]+")
             String code,
             @Positive
@@ -141,5 +121,7 @@ class ValidationAnnotations {
 
     static class Local {
         @interface NotNull { }
+
+        void accept(@NotNull String value) { }
     }
 }

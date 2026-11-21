@@ -1,14 +1,17 @@
 package lonelight.checks.integration;
 
 import com.puppycrawl.tools.checkstyle.api.AuditEvent;
+import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
 import lonelight.checks.CheckTestSupport;
 import lonelight.checks.FixtureCatalog;
 import lonelight.checks.JavaSource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class PackagedRulesIT {
     private static final String TYPE_SUFFIX = "lonelight.checks.naming.TypeSuffixCheck";
+    private static final String ANNOTATION_ATTRIBUTE = "lonelight.checks.framework.AnnotationAttributeCheck";
 
     @TempDir
     Path directoryPath;
@@ -106,7 +110,8 @@ class PackagedRulesIT {
             properties.setProperty("lonelight.typeSuffixMappings", "optional\\..*=DTO|Request");
             Path sampleSourcePath = Path.of("test-project", "src").toAbsolutePath();
             var manualExamples = FixtureCatalog.load(sampleSourcePath);
-            var positivePaths = Stream.of("AnnotationsFormatted.java", "ImportsSorted.java", "OrderSummary.java")
+            var positivePaths = Stream.of("AnnotationsFormatted.java", "IdeaFormattedCases.java",
+                            "ImportsSorted.java", "OrderSummary.java")
                     .map(sampleSourcePath.resolve("main/java/base")::resolve).toList();
             positivePaths.forEach(path -> assertTrue(manualExamples.files().contains(path), () -> "缺少合规样例 " + path));
             Set<String> manualMarkers = new HashSet<>();
@@ -125,6 +130,8 @@ class PackagedRulesIT {
                 verifyMessages(manualEvents);
                 verifyPositiveExamples(manualEvents, positivePaths);
                 if (profile.equals("project")) {
+                    verifyValidationExamples(manualEvents, rules.get(ANNOTATION_ATTRIBUTE), sampleSourcePath);
+                    verifyJUnitExamples(manualEvents, sampleSourcePath);
                     assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, TYPE_SUFFIX)).count());
                     var defaultEvents = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"),
                             examples.filesFor(TYPE_SUFFIX), loader);
@@ -140,6 +147,72 @@ class PackagedRulesIT {
             }
             assertEquals(manualMarkers, manualExamples.markedFiles().keySet());
         }
+    }
+
+    /**
+     * 核对两套校验注解、四种空白提示和同名注解的扫描结果
+     *
+     * @param events           完整项目约定的扫描结果
+     * @param rule             注解属性配置
+     * @param sampleSourcePath 测试项目源码目录
+     * @throws CheckstyleException 读取注解属性配置失败时
+     * @throws IOException 样例读取失败时
+     */
+    private static void verifyValidationExamples(List<AuditEvent> events, CheckTestSupport.LocatedRule rule,
+                                                 Path sampleSourcePath) throws CheckstyleException, IOException {
+        Path sourcePath = sampleSourcePath.resolve("main/java/project/ValidationAnnotations.java");
+        var lines = Files.readAllLines(sourcePath);
+        var findings = events.stream().filter(event -> event.getFileName().equals(sourcePath.toString())
+                && CheckTestSupport.matches(event, ANNOTATION_ATTRIBUTE)).toList();
+        var recordAnnotations = findings.stream()
+                .filter(event -> !lines.get(event.getLine() - 1).contains("message =")).toList();
+        var configuredAttributes = rule.configuration().getProperty("attributes").split(",");
+        assertEquals(configuredAttributes.length, recordAnnotations.size());
+        for (String attribute : configuredAttributes) {
+            String annotationName = attribute.strip().split("=", 2)[0];
+            assertEquals(1, recordAnnotations.stream()
+                    .filter(event -> event.getMessage().contains(" " + annotationName + " ")).count(), annotationName);
+        }
+        assertEquals(List.of(
+                        "@NotNull(message = \"\") String empty,",
+                        "@NotBlank(message = \" \" + \"\\t\") String whitespace,",
+                        "@NotEmpty(message = \"\\u0020\") String escaped,",
+                        "@jakarta.validation.constraints.NotNull(message = \"\"\""),
+                findings.stream().map(event -> lines.get(event.getLine() - 1).strip())
+                        .filter(line -> line.contains("message =")).toList());
+    }
+
+    /**
+     * 核对 JUnit 命名诊断只出现在六个不合规入口
+     *
+     * @param events           完整项目约定的扫描结果
+     * @param sampleSourcePath 测试项目源码目录
+     * @throws IOException 样例读取失败时
+     */
+    private static void verifyJUnitExamples(List<AuditEvent> events, Path sampleSourcePath) throws IOException {
+        Path testSourcesPath = sampleSourcePath.resolve("test/java/project");
+        verifyJUnitDeclarations(events, testSourcesPath.resolve("JUnitNamingCases.java"),
+                List.of("void subtotal", "void parameterizedSubtotal", "void repeatedSubtotal",
+                        "List<DynamicTest> subtotalCases", "void subtotalTemplate"));
+        verifyJUnitDeclarations(events, testSourcesPath.resolve("LegacyJUnitNamingTest.java"),
+                List.of("public void legacySubtotal"));
+    }
+
+    /**
+     * 逐个核对命名诊断所在的方法声明
+     *
+     * @param events       完整项目约定的扫描结果
+     * @param sourcePath   样例文件
+     * @param declarations 预期收到诊断的方法声明
+     * @throws IOException 样例读取失败时
+     */
+    private static void verifyJUnitDeclarations(List<AuditEvent> events, Path sourcePath, List<String> declarations)
+            throws IOException {
+        var lines = Files.readAllLines(sourcePath);
+        var findings = events.stream().filter(event -> event.getFileName().equals(sourcePath.toString())
+                        && CheckTestSupport.matches(event, "TestMethodNameCheck"))
+                .map(event -> lines.get(event.getLine() - 1).strip().split("\\(", 2)[0]).toList();
+        assertEquals(declarations, findings);
     }
 
     /**
@@ -194,7 +267,7 @@ class PackagedRulesIT {
     private static String severity(CheckTestSupport.LocatedRule locatedRule) {
         try {
             return locatedRule.configuration().getProperty("severity");
-        } catch (com.puppycrawl.tools.checkstyle.api.CheckstyleException checkstyleException) {
+        } catch (CheckstyleException checkstyleException) {
             throw new AssertionError(checkstyleException);
         }
     }
