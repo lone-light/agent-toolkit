@@ -1,7 +1,10 @@
 package lonelight.checks.integration;
 
+import com.puppycrawl.tools.checkstyle.ConfigurationLoader;
+import com.puppycrawl.tools.checkstyle.PropertiesExpander;
 import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
+import com.puppycrawl.tools.checkstyle.api.Configuration;
 import lonelight.checks.CheckTestSupport;
 import lonelight.checks.FixtureCatalog;
 import lonelight.checks.JavaSource;
@@ -29,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author lonelight
  */
 class PackagedRulesIT {
+    private static final String PROJECT_PROFILE = "lonelight-project";
+    private static final List<String> PROFILES = List.of("lonelight-base", PROJECT_PROFILE);
     private static final String TYPE_SUFFIX = "lonelight.checks.naming.TypeSuffixCheck";
     private static final String ANNOTATION_ATTRIBUTE = "lonelight.checks.framework.AnnotationAttributeCheck";
 
@@ -40,9 +45,10 @@ class PackagedRulesIT {
      */
     @Test
     void scan_packagedJar_loadsRulesAndValidatesSamples() throws Exception {
-        Path jarPath = Path.of("target/lonelight-checks-0.1.0.jar").toAbsolutePath();
+        Path jarPath = Path.of(System.getProperty("lonelight.artifactPath")).toAbsolutePath();
         try (JarFile archive = new JarFile(jarPath.toFile())) {
-            assertEquals("0.1.0", archive.getManifest().getMainAttributes().getValue("Implementation-Version"));
+            assertEquals(System.getProperty("lonelight.artifactVersion"),
+                    archive.getManifest().getMainAttributes().getValue("Implementation-Version"));
             assertNotNull(archive.getJarEntry("lonelight/checks/messages.properties"));
             assertTrue(archive.stream().noneMatch(entry -> entry.getName().startsWith("com/puppycrawl/")));
         }
@@ -87,9 +93,10 @@ class PackagedRulesIT {
             Class<?> check = loader.loadClass("lonelight.checks.naming.VariableTypeNameCheck");
             assertEquals(jarPath.toUri().toURL(), check.getProtectionDomain().getCodeSource().getLocation());
             Path filePath = CheckTestSupport.write(directoryPath, "Example.java", "package sample; public class Example { UserDTO request; }\n");
-            for (String profile : List.of("lonelight-base", "lonelight-project")) {
-                var events = CheckTestSupport.scan(CheckTestSupport.load(profile), List.of(filePath), loader);
-                String requiredRule = profile.equals("lonelight-base") ? "MissingJavadocType" : check.getName();
+            for (String profile : PROFILES) {
+                var configuration = loadPackagedProfile(loader, profile, new Properties());
+                var events = CheckTestSupport.scan(configuration, List.of(filePath), loader);
+                String requiredRule = profile.equals(PROJECT_PROFILE) ? check.getName() : "MissingJavadocType";
                 assertTrue(events.stream().anyMatch(event -> CheckTestSupport.matches(event, requiredRule)), profile);
             }
             CheckTestSupport.write(directoryPath, "Result.java", "package sample; public record Result(String message) {}");
@@ -101,7 +108,8 @@ class PackagedRulesIT {
                         @GetMapping Result read() { return null; }
                     }
                     """);
-            var apiEvents = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"), List.of(controllerPath), loader)
+            var projectConfiguration = loadPackagedProfile(loader, PROJECT_PROFILE, new Properties());
+            var apiEvents = CheckTestSupport.scan(projectConfiguration, List.of(controllerPath), loader)
                     .stream().filter(event -> CheckTestSupport.matches(event, "ControllerApiDocumentation")).toList();
             assertEquals(2, apiEvents.size());
             assertTrue(apiEvents.stream().anyMatch(event -> event.getMessage().contains("@Operation")));
@@ -116,7 +124,7 @@ class PackagedRulesIT {
             positivePaths.forEach(path -> assertTrue(manualExamples.files().contains(path), () -> "缺少合规样例 " + path));
             Set<String> manualMarkers = new HashSet<>();
             for (String profile : List.of("base", "project")) {
-                var configuration = CheckTestSupport.load("lonelight-" + profile, properties);
+                var configuration = loadPackagedProfile(loader, "lonelight-" + profile, properties);
                 var examples = FixtureCatalog.load(profile);
                 var events = CheckTestSupport.scan(configuration, examples.files(), loader);
                 var rules = CheckTestSupport.rules(configuration);
@@ -133,8 +141,7 @@ class PackagedRulesIT {
                     verifyValidationExamples(manualEvents, rules.get(ANNOTATION_ATTRIBUTE), sampleSourcePath);
                     verifyJUnitExamples(manualEvents, sampleSourcePath);
                     assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, TYPE_SUFFIX)).count());
-                    var defaultEvents = CheckTestSupport.scan(CheckTestSupport.load("lonelight-project"),
-                            examples.filesFor(TYPE_SUFFIX), loader);
+                    var defaultEvents = CheckTestSupport.scan(projectConfiguration, examples.filesFor(TYPE_SUFFIX), loader);
                     assertTrue(defaultEvents.stream().noneMatch(event -> CheckTestSupport.matches(event, TYPE_SUFFIX)));
                     var messages = events.stream()
                             .filter(event -> CheckTestSupport.matches(event, "ControllerApiDocumentation"))
@@ -147,6 +154,27 @@ class PackagedRulesIT {
             }
             assertEquals(manualMarkers, manualExamples.markedFiles().keySet());
         }
+    }
+
+    /**
+     * 从 JAR 读取配置并核对内容与源码一致
+     *
+     * @param classLoader 规则 JAR 的类加载器
+     * @param profile     配置名
+     * @param properties  配置使用的外部属性
+     * @return 读取的检查配置
+     * @throws IOException 读取配置失败时
+     * @throws CheckstyleException 解析配置失败时
+     */
+    private static Configuration loadPackagedProfile(ClassLoader classLoader, String profile, Properties properties)
+            throws IOException, CheckstyleException {
+        String filename = profile + ".xml";
+        URL configURL = classLoader.getResource("lonelight/checks/config/" + filename);
+        assertNotNull(configURL, filename);
+        try (var inputStream = configURL.openStream()) {
+            assertArrayEquals(Files.readAllBytes(Path.of("config", filename)), inputStream.readAllBytes(), filename);
+        }
+        return ConfigurationLoader.loadConfiguration(configURL.toExternalForm(), new PropertiesExpander(properties));
     }
 
     /**
