@@ -108,6 +108,6 @@ final class ApiAnnotations {
      */
     static List<DetailAST> annotations(DetailAST node, JavaSource source, String type) {
         return JavaSource.annotations(node).stream().filter(nodeAnnotation ->
-                source.isKnownType(JavaSource.annotationName(nodeAnnotation), type)).toList();
+                source.isKnownAnnotationType(nodeAnnotation, type)).toList();
     }
 }

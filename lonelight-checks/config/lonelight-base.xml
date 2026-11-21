@@ -217,6 +217,8 @@
             <property name="allowEmptyTypes" value="true"/>
             <property name="allowEmptyLambdas" value="true"/>
         </module>
+        <!-- 只含常量的单行枚举允许花括号内侧省略空格和换行 -->
+        <module name="lonelight.checks.whitespace.CompactEnumSpacingFilter"/>
         <!-- 要求空方法、空类型和其他空体的左花括号前保留空白 -->
         <module name="WhitespaceBeforeEmptyBody">
             <property name="severity" value="warning"/>
@@ -244,6 +246,7 @@
         <!-- 统一传统 for 中省略迭代表达式时的空白 -->
         <module name="EmptyForIteratorPad">
             <property name="severity" value="warning"/>
+            <property name="option" value="space"/>
         </module>
         <!-- 去掉逗号、分号、后置递增递减、可变参数标记及标签冒号前的多余空白 -->
         <module name="NoWhitespaceBefore">
@@ -491,6 +494,8 @@
         <module name="JavadocParagraph">
             <property name="severity" value="warning"/>
         </module>
+        <!-- 独占一行的段落标签可直接分隔正文 -->
+        <module name="lonelight.checks.javadoc.JavadocParagraphSpacingFilter"/>
         <!-- 检查块标签说明，方法返回值说明由 JavadocMethod 检查 -->
         <module name="NonEmptyAtclauseDescription">
             <property name="severity" value="error"/>

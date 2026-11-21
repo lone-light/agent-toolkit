@@ -28,9 +28,9 @@ public final class JavaSource {
     private final Set<String> wildcardImports = new HashSet<>();
 
     /**
-     * 当前文件声明的类型短名
+     * 当前文件的类型声明，按短名索引
      */
-    private final Set<String> declaredTypes = new HashSet<>();
+    private final Map<String, List<DetailAST>> declaredTypes = new HashMap<>();
 
     /**
      * 当前文件声明的泛型类型参数名
@@ -72,7 +72,8 @@ public final class JavaSource {
     private void readDeclaredTypes(DetailAST node) {
         switch (node.getType()) {
             case TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF,
-                 TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF -> declaredTypes.add(declarationName(node).getText());
+                 TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF -> declaredTypes
+                    .computeIfAbsent(declarationName(node).getText(), ignored -> new ArrayList<>()).add(node);
             case TokenTypes.TYPE_PARAMETER -> typeParameterNames.add(declarationName(node).getText());
             default -> {
                 // 其余节点只继续检查子节点
@@ -142,7 +143,7 @@ public final class JavaSource {
      */
     public boolean canShortenQualifiedName(String canonical) {
         String simple = simpleName(canonical);
-        if (declaredTypes.contains(simple) || typeParameterNames.contains(simple)
+        if (declaredTypes.containsKey(simple) || typeParameterNames.contains(simple)
                 || staticImports.stream().map(JavaSource::simpleName).anyMatch(name -> name.equals(simple) || name.equals("*"))) {
             return false;
         }
@@ -172,7 +173,7 @@ public final class JavaSource {
         }
         List<String> names = new ArrayList<>();
         names.add(local);
-        if (!declaredTypes.contains(first)) {
+        if (!declaredTypes.containsKey(first)) {
             wildcardImports.stream().sorted().map(owner -> owner + "." + written).forEach(names::add);
         }
         return names;
@@ -187,9 +188,9 @@ public final class JavaSource {
      */
     public boolean isType(String written, String canonical) {
         return resolve(written).equals(canonical)
-                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
+                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
                 && canonical.startsWith("java.lang.") && written.equals(simpleName(canonical)))
-                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
+                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
                 && wildcardImports.size() == 1
                 && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')))
                 && written.equals(simpleName(canonical)));
@@ -215,7 +216,7 @@ public final class JavaSource {
      */
     public boolean isKnownType(String written, String canonical) {
         return isType(written, canonical)
-                || !written.contains(".") && !imports.containsKey(written) && !declaredTypes.contains(written)
+                || !written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
                 && written.equals(simpleName(canonical))
                 && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')));
     }
@@ -228,7 +229,104 @@ public final class JavaSource {
      * @return 存在匹配注解时为 true
      */
     public boolean hasKnownAnnotation(DetailAST declaration, String canonical) {
-        return annotations(declaration).stream().anyMatch(annotation -> isKnownType(annotationName(annotation), canonical));
+        return annotations(declaration).stream().anyMatch(annotation -> isKnownAnnotationType(annotation, canonical));
+    }
+
+    /**
+     * 按可见的同名声明和导入识别已知注解
+     *
+     * @param annotation 注解节点
+     * @param canonical  注解的全限定名
+     * @return 源码中的注解匹配已知类型时为 true
+     */
+    public boolean isKnownAnnotationType(DetailAST annotation, String canonical) {
+        String written = annotationName(annotation);
+        if (written.contains(".")) {
+            return resolve(written).equals(canonical);
+        }
+        if (!written.equals(simpleName(canonical))) {
+            return false;
+        }
+        var visible = visibleType(annotation, written);
+        if (visible != null) {
+            return canonical.equals(declaredTypeName(visible));
+        }
+        String imported = imports.get(written);
+        if (imported != null) {
+            return imported.equals(canonical);
+        }
+        String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
+        return qualifier.equals(packageName) || qualifier.equals("java.lang") || wildcardImports.contains(qualifier);
+    }
+
+    /**
+     * 查找当前注解位置可见的同名类型
+     *
+     * @param annotation 注解节点
+     * @param simple     要查找的类型短名
+     * @return 最近的同名类型声明，找不到时为 null
+     */
+    private DetailAST visibleType(DetailAST annotation, String simple) {
+        var candidates = declaredTypes.get(simple);
+        if (candidates == null) {
+            return null;
+        }
+        for (DetailAST scope = annotation.getParent(); scope != null; scope = scope.getParent()) {
+            for (DetailAST candidate : candidates) {
+                if (isDeclaredInScope(candidate, scope, annotation)) {
+                    return candidate;
+                }
+            }
+        }
+        return candidates.stream().filter(candidate -> candidate.getParent() == null).findFirst().orElse(null);
+    }
+
+    /**
+     * 判断同一语法块的类型声明是否已进入作用域
+     *
+     * @param candidate  候选类型声明
+     * @param scope      候选作用域
+     * @param annotation 注解节点
+     * @return 声明在对应作用域内可见时为 true
+     */
+    private static boolean isDeclaredInScope(DetailAST candidate, DetailAST scope, DetailAST annotation) {
+        if (candidate.getParent() != scope) {
+            return false;
+        }
+        return scope.getType() != TokenTypes.SLIST || candidate.getLineNo() < annotation.getLineNo()
+                || candidate.getLineNo() == annotation.getLineNo()
+                && candidate.getColumnNo() <= annotation.getColumnNo();
+    }
+
+    /**
+     * 找出顶层或成员注解的全限定名
+     *
+     * @param declaration 可见的同名类型声明
+     * @return 注解的全限定名，其他类型或局部声明返回空字符串
+     */
+    private String declaredTypeName(DetailAST declaration) {
+        if (declaration.getType() != TokenTypes.ANNOTATION_DEF) {
+            return "";
+        }
+        Deque<String> names = new ArrayDeque<>();
+        names.addFirst(declarationName(declaration).getText());
+        DetailAST scope = declaration.getParent();
+        while (scope != null && scope.getType() == TokenTypes.OBJBLOCK) {
+            var owner = scope.getParent();
+            var identifier = owner.findFirstToken(TokenTypes.IDENT);
+            if (identifier == null) {
+                return "";
+            }
+            names.addFirst(identifier.getText());
+            scope = owner.getParent();
+        }
+        if (scope != null && scope.getType() != TokenTypes.COMPILATION_UNIT) {
+            return "";
+        }
+        if (!packageName.isEmpty()) {
+            names.addFirst(packageName);
+        }
+        return String.join(".", names);
     }
 
     /**
@@ -458,8 +556,10 @@ public final class JavaSource {
         boolean implicit = name.equals("value");
         for (var child = annotationDetailAST.getFirstChild(); child != null; child = child.getNextSibling()) {
             var value = switch (child.getType()) {
-                case TokenTypes.ANNOTATION_MEMBER_VALUE_PAIR ->
-                        child.getFirstChild().getText().equals(name) ? child.getLastChild() : null;
+                case TokenTypes.ANNOTATION_MEMBER_VALUE_PAIR -> {
+                    String attributeName = child.getFirstChild().getText();
+                    yield attributeName.equals(name) ? child.getLastChild() : null;
+                }
                 case TokenTypes.ANNOTATION, TokenTypes.ANNOTATION_ARRAY_INIT -> implicit ? child : null;
                 default -> null;
             };

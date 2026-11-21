@@ -18,7 +18,7 @@ class RequestValidationCheckTest extends CustomCheckTest {
     @Test
     void scan_requestModels_requiresValidationOnBoundModels() throws Exception {
         verify(RequestValidationCheck.class, """
-                import jakarta.validation.Valid;
+                import jakarta.validation.*;
                 import jakarta.validation.constraints.*;
                 import org.springframework.validation.annotation.Validated;
                 import org.springframework.web.bind.annotation.*;
@@ -27,6 +27,10 @@ class RequestValidationCheckTest extends CustomCheckTest {
                 class Input extends Base { @Valid Query query; }
                 class Wrapper<T> { T value; }
                 class PlainInput extends Wrapper<Query> {}
+                class Local {
+                    @interface NotBlank {}
+                    @interface Valid {}
+                }
                 @RestController @Validated class Web {
                     @PostMapping void body(@RequestBody Input input) {}
                     @GetMapping void implicit(Query query) {}

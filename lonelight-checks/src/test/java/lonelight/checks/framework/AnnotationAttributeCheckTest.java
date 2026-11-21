@@ -1,9 +1,13 @@
 package lonelight.checks.framework;
 
+import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import lonelight.checks.CheckTestSupport;
 import lonelight.checks.CustomCheckTest;
 import lonelight.checks.FixtureCatalog;
 import org.junit.jupiter.api.Test;
+
+import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -61,6 +65,31 @@ class AnnotationAttributeCheckTest extends CustomCheckTest {
     void scan_multipleAttributes_reportsEachAttributeOnce() throws Exception {
         verify(AnnotationAttributeCheck.class, "@app.Log class Example {}", 2,
                 "attributes", "app.Log=value,app.Log=message,app.Log=value");
+    }
+
+    /**
+     * 验证通配导入按作用域区分标准校验注解和同名成员类型
+     */
+    @Test
+    void scan_wildcardImports_respectsNestedAnnotationScope() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
+                import jakarta.validation.constraints.*;
+                import java.util.*;
+
+                class Example {
+                    record Input(@NotNull String value) {}
+
+                    static class Local {
+                        @interface NotNull {}
+
+                        @NotNull String ignored;
+                    }
+                }
+                """);
+        var check = CheckTestSupport.rule(AnnotationAttributeCheck.class.getName(),
+                "attributes", "jakarta.validation.constraints.NotNull=message");
+        var events = CheckTestSupport.scan(CheckTestSupport.isolate(check, true), filePath);
+        assertEquals(List.of(5), events.stream().map(AuditEvent::getLine).toList());
     }
 
     /**

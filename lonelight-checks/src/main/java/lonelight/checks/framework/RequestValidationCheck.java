@@ -168,7 +168,7 @@ public final class RequestValidationCheck extends RuleCheck {
         return hasCascade(memberDetailAST, declaringJavaSource) || hasConstraint(memberDetailAST, declaringJavaSource)
                 || JavaSource.descendants(memberDetailAST.findFirstToken(TokenTypes.TYPE), TokenTypes.ANNOTATION).stream()
                 .anyMatch(annotationDetailAST -> isConstraint(annotationDetailAST, memberDetailAST, declaringJavaSource)
-                        || isValid(JavaSource.annotationName(annotationDetailAST), declaringJavaSource));
+                        || isValid(annotationDetailAST, declaringJavaSource));
     }
 
     /**
@@ -207,8 +207,9 @@ public final class RequestValidationCheck extends RuleCheck {
     private boolean isConstraint(DetailAST annotationDetailAST, DetailAST contextDetailAST, JavaSource declaringJavaSource) {
         String name = JavaSource.annotationName(annotationDetailAST);
         String simple = JavaSource.simpleName(name);
-        if (CONSTRAINTS.contains(simple) && (declaringJavaSource.isKnownType(name, "jakarta.validation.constraints." + simple)
-                || declaringJavaSource.isKnownType(name, "javax.validation.constraints." + simple))) {
+        if (CONSTRAINTS.contains(simple)
+                && (declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "jakarta.validation.constraints." + simple)
+                || declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "javax.validation.constraints." + simple))) {
             return true;
         }
         var model = apiSourceModels.find(name, declaringJavaSource, contextDetailAST);
@@ -226,18 +227,18 @@ public final class RequestValidationCheck extends RuleCheck {
      */
     private static boolean hasCascade(DetailAST nodeDetailAST, JavaSource declaringJavaSource) {
         return JavaSource.annotations(nodeDetailAST).stream()
-                .anyMatch(annotationDetailAST -> isValid(JavaSource.annotationName(annotationDetailAST), declaringJavaSource));
+                .anyMatch(annotationDetailAST -> isValid(annotationDetailAST, declaringJavaSource));
     }
 
     /**
      * 匹配标准级联校验注解
      *
-     * @param name                注解的源码名称
+     * @param annotationDetailAST 待匹配的注解节点
      * @param declaringJavaSource 名称所在文件的解析信息
      * @return 匹配 Jakarta 或 javax Valid 时为 true
      */
-    private static boolean isValid(String name, JavaSource declaringJavaSource) {
-        return declaringJavaSource.isKnownType(name, "jakarta.validation.Valid")
-                || declaringJavaSource.isKnownType(name, "javax.validation.Valid");
+    private static boolean isValid(DetailAST annotationDetailAST, JavaSource declaringJavaSource) {
+        return declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "jakarta.validation.Valid")
+                || declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "javax.validation.Valid");
     }
 }

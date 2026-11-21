@@ -48,7 +48,7 @@ public final class FrameworkMethods {
      * @return 含有 JUnit 测试注解时为 true
      */
     public static boolean isJUnitTest(JavaSource javaSource, DetailAST methodDetailAST) {
-        return TEST_ANNOTATIONS.stream().anyMatch(annotation -> javaSource.hasAnnotation(methodDetailAST, annotation));
+        return TEST_ANNOTATIONS.stream().anyMatch(annotation -> javaSource.hasKnownAnnotation(methodDetailAST, annotation));
     }
 
     /**

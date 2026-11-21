@@ -1,5 +1,6 @@
 package lonelight.checks.configuration;
 
+import com.puppycrawl.tools.checkstyle.api.AuditEvent;
 import lonelight.checks.CheckTestSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,6 +18,55 @@ import static org.junit.jupiter.api.Assertions.*;
 class FiltersTest {
     @TempDir
     Path directoryPath;
+
+    /**
+     * 验证单行枚举的内侧空格豁免保留其他空格检查
+     */
+    @Test
+    void suppress_compactEnum_keepsOtherBraceDiagnostics() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
+                class Example {
+                    @Deprecated
+                    enum Compact {ON, OFF}
+                    enum MissingSpace{ON, OFF}
+                    enum Multiline {ON,
+                        OFF}
+                    void run() {run();}
+                }
+                """);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
+        var lines = events.stream()
+                .filter(event -> CheckTestSupport.matches(event, "WhitespaceAround")).map(AuditEvent::getLine).toList();
+        assertEquals(List.of(4, 5, 6, 7, 7), lines);
+        assertTrue(events.stream().noneMatch(event -> CheckTestSupport.matches(event, "LeftCurly")
+                && (event.getLine() == 3 || event.getLine() == 4)));
+    }
+
+    /**
+     * 验证独占一行的段落标签可以代替段落之间的空行
+     */
+    @Test
+    void suppress_standaloneParagraphTag_keepsInlineTagDiagnostics() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
+                class Example {
+                    /**
+                     * 第一段
+                     * <p>
+                     * 第二段
+                     */
+                    void formatted() {}
+
+                    /**
+                     * 第一段
+                     * <p>第二段
+                     */
+                    void inline() {}
+                }
+                """);
+        var lines = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath).stream()
+                .filter(event -> CheckTestSupport.matches(event, "JavadocParagraph")).map(AuditEvent::getLine).toList();
+        assertEquals(List.of(11), lines);
+    }
 
     /**
      * 验证规则跳过构建产物且仍检查真实源码

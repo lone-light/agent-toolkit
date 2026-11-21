@@ -70,9 +70,8 @@ public final class AnnotationAttributeCheck extends RuleCheck {
      */
     @Override
     public void visitToken(DetailAST annotation) {
-        String written = JavaSource.annotationName(annotation);
         for (Map.Entry<String, Set<String>> entry : attributes.entrySet()) {
-            if (source.isType(written, entry.getKey())) {
+            if (source.isKnownAnnotationType(annotation, entry.getKey())) {
                 for (String attribute : entry.getValue()) {
                     DetailAST value = JavaSource.attribute(annotation, attribute);
                     String literal = JavaSource.literalText(value);

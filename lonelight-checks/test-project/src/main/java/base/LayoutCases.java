@@ -32,7 +32,7 @@ class LayoutCases
         String text = ( String ) value;
         int first = 1, second = 2;
         int third = first; int fourth = second;
-        for (int index = 0; index < text.length(); ) {
+        for (int index = 0; index < text.length();) {
             break;
         }
         switch (fourth) {

@@ -400,7 +400,7 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
      */
     private static List<DetailAST> nested(DetailAST annotation, JavaSource source, String attribute, String type) {
         return annotation == null ? List.of() : JavaSource.annotationValues(annotation, attribute).stream()
-                .filter(node -> source.isKnownType(JavaSource.annotationName(node), type)).toList();
+                .filter(node -> source.isKnownAnnotationType(node, type)).toList();
     }
 
     /**

@@ -97,7 +97,7 @@ final class NativeRuleCases {
                 new RuleCase("MethodParamPad", WARNING, type("void run() {}")),
                 new RuleCase("ParenPad", WARNING, type("void run(int value) {}")),
                 new RuleCase("TypecastParenPad", WARNING, method("Object value = null; String text = (String) value;")),
-                new RuleCase("EmptyForIteratorPad", WARNING, method("for (int index = 0; index < 1;) { break; }")),
+                new RuleCase("EmptyForIteratorPad", WARNING, method("for (int index = 0; index < 1; ) { break; }")),
                 new RuleCase("NoWhitespaceBefore", WARNING, method("run();")),
                 new RuleCase("NoWhitespaceBeforeCaseDefaultColon", WARNING,
                         method("switch (1) { case 1: break; default: break; }")),

@@ -52,17 +52,17 @@
 | `imports.ImportGroupSpacingCheck` | warning | `javax` 与 `java` 组之间无空行，其余相邻组间留一空行。两组间有注释等非空白行时跳过 |
 | `Indentation` | warning | 基本缩进为 4 空格，数组初始化和注解数组初始化的缩进为 8 空格 |
 | `NeedBraces` | error | 要求 if、else、for、while 和 do 的受控语句使用花括号 |
-| `LeftCurly` | warning | 左花括号放在语句或声明行的行尾，枚举除外 |
+| `LeftCurly` | warning | 左花括号放在语句或声明行的行尾。只含常量的单行枚举允许左花括号后不换行 |
 | `RightCurly` | warning | 统一 if/else 和 try/catch/finally 的右花括号及后续关键字位置 |
 | `WhitespaceAfter` | warning | 检查逗号、分号、类型转换及指定关键字之后的必要空白 |
-| `WhitespaceAround` | warning | 检查运算符、控制流关键字和花括号周围的空白，空构造器、空方法、空类型和空 Lambda 允许紧贴的 `{}` |
+| `WhitespaceAround` | warning | 检查运算符、控制流关键字和花括号周围的空白。空构造器、空方法、空类型和空 Lambda 允许紧贴的 `{}`，只含常量的单行枚举允许常量紧贴花括号内侧 |
 | `WhitespaceBeforeEmptyBody` | warning | 要求空方法、空类型和其他空体的左花括号前保留空白 |
 | `GenericWhitespace` | warning | 检查泛型尖括号周围的空白 |
 | `SingleSpaceSeparator` | warning | 限制同一行相邻语法元素之间出现多个分隔空格 |
 | `MethodParamPad` | warning | 要求方法名、构造调用等名称与随后的左圆括号直接相接 |
 | `ParenPad` | warning | 去掉普通圆括号内侧的多余空格 |
 | `TypecastParenPad` | warning | 去掉强制类型转换圆括号内侧的多余空格 |
-| `EmptyForIteratorPad` | warning | `for` 省略迭代表达式时，末尾分号后同一行内不留空白 |
+| `EmptyForIteratorPad` | warning | `for` 省略迭代表达式时，末尾分号与同行右括号之间留空格 |
 | `NoWhitespaceBefore` | warning | 去掉逗号、分号、后置递增递减、可变参数标记及标签冒号前的多余空白 |
 | `NoWhitespaceBeforeCaseDefaultColon` | warning | 去掉传统 switch 中 case 和 default 冒号前的多余空格 |
 | `EmptyLineSeparator` | warning | 用空行分隔包声明、导入、类型、方法、构造器和初始化块等结构。相邻字段可连续排列，允许多个空行 |
@@ -129,7 +129,7 @@
 | `JavadocMissingWhitespaceAfterAsterisk` | warning | 要求 Javadoc 行首星号与后续文字之间有空白 |
 | `JavadocLeadingAsteriskAlign` | warning | 让多行 Javadoc 的行首星号和结束标记垂直对齐 |
 | `JavadocContentLocation` | warning | 多行 Javadoc 的正文从第二行开始 |
-| `JavadocParagraph` | warning | 检查文档段落之间的空行及 p 标签使用位置 |
+| `JavadocParagraph` | warning | 检查文档段落与 `<p>` 标签的位置。标签可独占一行，也可在空行后与下一段正文同行 |
 | `NonEmptyAtclauseDescription` | error | 已有 `@param`、`@throws`、`@exception`、`@deprecated`、`@since` 标签须有说明 |
 | `RequireEmptyLineBeforeBlockTagGroup` | warning | 要求 Javadoc 正文与块标签组之间空一行 |
 | `AtclauseOrder` | warning | 检查类型、字段、方法和构造器的 Javadoc。出现 `@param`、`@return`、`@throws`、`@deprecated` 时，按此顺序排列 |
@@ -250,12 +250,14 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 
 ### 3.1 源码分析范围
 
-两份配置都扫描 `.java` 文件。自定义检查使用 Java 语法树，依据包声明、导入和源码中的类型声明识别名称。接口注解检查识别直接声明在方法上的标准 Spring 映射注解，支持已知框架包的通配导入。
+两份配置都扫描 `.java` 文件。自定义检查使用 Java 语法树，依据包声明、导入和源码中的类型声明识别名称。接口注解检查识别直接声明在方法上的标准 Spring 映射注解。Spring 映射、JUnit 测试方法和配置中的校验注解均支持普通导入及通配导入。
 
 ### 3.2 过滤与局部豁免
 
 | 辅助模块 | 生效范围 |
 | --- | --- |
+| `CompactEnumSpacingFilter` | 只含常量的单行枚举豁免花括号内侧的空格和换行检查 |
+| `JavadocParagraphSpacingFilter` | 独占一行的 `<p>` 标签可直接分隔正文 |
 | `SuppressWarningsHolder` 与 `SuppressWarningsFilter` | 两份配置均支持按检查名称或 id 声明局部豁免 |
 | `SuppressionCommentFilter` | 两份配置均支持用成对的 `CHECKSTYLE.OFF` 和 `CHECKSTYLE.ON` 按检查名称局部豁免。通用配置也支持按 ID 匹配 |
 | `SuppressWithPlainTextCommentFilter` | `// CHECKSTYLE.OFF: LineLength` 和 `// CHECKSTYLE.ON: LineLength` 之间豁免行宽检查 |
