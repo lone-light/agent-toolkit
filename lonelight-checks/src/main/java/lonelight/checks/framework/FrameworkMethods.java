@@ -63,6 +63,16 @@ public final class FrameworkMethods {
     }
 
     /**
+     * 识别实际传值的形参，跳过显式接收者和分隔符
+     *
+     * @param node 参数列表中的子节点
+     * @return 节点声明具名形参时为 true
+     */
+    static boolean isValueParameter(DetailAST node) {
+        return node.getType() == TokenTypes.PARAMETER_DEF && node.findFirstToken(TokenTypes.IDENT) != null;
+    }
+
+    /**
      * 识别不需要对外说明的框架参数
      *
      * @param parameterDetailAST 待检查的参数声明

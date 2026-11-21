@@ -42,18 +42,12 @@ final class MethodDocumentation {
         if (block == null) {
             return;
         }
-        String text = JavadocUtil.getJavadocCommentContent(block);
-        String[] lines = text.split("\n", -1);
-        int firstLine = block.getLineNo();
         var tree = new JavadocDetailNodeParser().parseJavadocComment(block).getTree();
         if (tree == null) {
-            for (int index = 0; index < lines.length; index++) {
-                String line = lines[index].stripLeading();
-                lineBiConsumer.accept(firstLine + index, (line.startsWith("*") ? line.substring(1) : line).strip());
-            }
             return;
         }
-        StringBuilder[] prose = new StringBuilder[lines.length];
+        int firstLine = block.getLineNo();
+        StringBuilder[] prose = new StringBuilder[block.getLastChild().getLineNo() - firstLine + 1];
         Arrays.setAll(prose, ignored -> new StringBuilder());
         appendProse(tree, prose, firstLine);
         for (int index = 0; index < prose.length; index++) {
@@ -70,7 +64,8 @@ final class MethodDocumentation {
      */
     private static void appendProse(DetailNode nodeDetailNode, StringBuilder[] prose, int firstLine) {
         int type = nodeDetailNode.getType();
-        if (type == JavadocCommentsTokenTypes.LEADING_ASTERISK || type == JavadocCommentsTokenTypes.NEWLINE) {
+        if (type == JavadocCommentsTokenTypes.LEADING_ASTERISK || type == JavadocCommentsTokenTypes.NEWLINE
+                || type == JavadocCommentsTokenTypes.HTML_TAG_START || type == JavadocCommentsTokenTypes.HTML_TAG_END) {
             return;
         }
         if (isNonProse(nodeDetailNode)) {
@@ -100,7 +95,7 @@ final class MethodDocumentation {
     private static boolean isNonProse(DetailNode nodeDetailNode) {
         return switch (nodeDetailNode.getType()) {
             case JavadocCommentsTokenTypes.CODE_INLINE_TAG, JavadocCommentsTokenTypes.LITERAL_INLINE_TAG,
-                 JavadocCommentsTokenTypes.HTML_COMMENT -> true;
+                 JavadocCommentsTokenTypes.SNIPPET_INLINE_TAG, JavadocCommentsTokenTypes.HTML_COMMENT -> true;
             case JavadocCommentsTokenTypes.HTML_ELEMENT -> isHtmlCode(nodeDetailNode);
             default -> false;
         };

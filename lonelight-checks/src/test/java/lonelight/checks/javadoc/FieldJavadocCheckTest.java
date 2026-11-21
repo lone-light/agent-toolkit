@@ -63,4 +63,30 @@ class FieldJavadocCheckTest extends CustomCheckTest {
                 }
                 """, 1);
     }
+
+    /**
+     * 验证跨行的组件说明有效，正文示例和 HTML 注释不能代替参数说明
+     */
+    @Test
+    void scan_recordTags_readsActualParameterDescriptions() throws Exception {
+        verify(FieldJavadocCheck.class, """
+                /**
+                 * 组件说明
+                 *
+                 * @param documented
+                 *         在下一行说明
+                 * @param linked {@link String}
+                 */
+                record Example(String documented, String linked) {}
+                """, 0, "tokens", "RECORD_COMPONENT_DEF");
+        verify(FieldJavadocCheck.class, """
+                /**
+                 * 示例 {@code @param missing 文档示例}
+                 *
+                 * @param empty <!-- 待补充 -->
+                 * @param placeholder {@code }
+                 */
+                record Example(String empty, String placeholder, String missing) {}
+                """, 3, "tokens", "RECORD_COMPONENT_DEF");
+    }
 }

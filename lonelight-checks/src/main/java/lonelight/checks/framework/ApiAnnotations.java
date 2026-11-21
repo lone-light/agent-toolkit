@@ -82,7 +82,7 @@ final class ApiAnnotations {
      */
     static boolean flag(DetailAST annotation, String key) {
         DetailAST value = annotation == null ? null : JavaSource.attribute(annotation, key);
-        var expression = value == null ? null : value.getFirstChild();
+        var expression = value == null ? null : JavaSource.firstOperand(value);
         return expression != null && expression.getType() == TokenTypes.LITERAL_TRUE;
     }
 

@@ -50,7 +50,7 @@ public final class BooleanFieldNameCheck extends RuleCheck {
     @Override
     public void beginTree(DetailAST rootDetailAST) {
         this.rootDetailAST = rootDetailAST;
-        javaSource = new JavaSource(rootDetailAST);
+        javaSource = indexSource(rootDetailAST);
         apiSourceModels = null;
         visited.clear();
     }
@@ -71,7 +71,7 @@ public final class BooleanFieldNameCheck extends RuleCheck {
         }
         var parameters = JavaSource.children(methodDetailAST.findFirstToken(TokenTypes.PARAMETERS));
         for (var parameter : parameters) {
-            if (parameter.getType() == TokenTypes.PARAMETER_DEF
+            if (FrameworkMethods.isValueParameter(parameter)
                     && !FrameworkMethods.isInternalParameter(parameter, javaSource)
                     && ApiAnnotations.isVisibleParameter(parameter, javaSource)) {
                 checkReferences(parameter.findFirstToken(TokenTypes.TYPE), javaSource, parameter, JavaSource.declarationName(parameter));

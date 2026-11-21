@@ -136,4 +136,38 @@ class IdeaStyleChecksTest {
         assertTrue(events.stream().allMatch(event -> event.getSeverityLevel() == SeverityLevel.WARNING));
         return events.stream().map(AuditEvent::getLine).toList();
     }
+
+    /**
+     * 验证缩短注解名时保留类字面量、静态调用和方法引用使用的类型名
+     */
+    @Test
+    void scan_qualifiedAnnotations_preservesTypeQualifiers() throws Exception {
+        for (String expression : List.of("String.class", "String.valueOf(1)", "String::valueOf")) {
+            String type = expression.contains("::") ? "java.util.function.IntFunction<?>" : "Object";
+            String source = "class Example { @custom.String " + type + " value = " + expression + "; }";
+            assertTrue(findings(source, "QualifiedAnnotation").isEmpty(), expression);
+        }
+    }
+
+    /**
+     * 验证限定器引用同名变量时不占用类型名，类字面量仍按类型解析
+     */
+    @Test
+    void scan_valueQualifier_keepsAnnotationShortening() throws Exception {
+        String source = """
+                class Example {
+                    static final java.util.List<?> Tags = java.util.List.of();
+                    @custom.Tags int count = Tags.size();
+                    java.util.function.IntSupplier size = Tags::size;
+                }
+                """;
+        assertEquals(List.of(3), findings(source, "QualifiedAnnotation"));
+        String classLiteral = """
+                class Example {
+                    static final Object String = new Object();
+                    @custom.String Class<?> type = String.class;
+                }
+                """;
+        assertTrue(findings(classLiteral, "QualifiedAnnotation").isEmpty());
+    }
 }

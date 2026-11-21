@@ -89,13 +89,13 @@ public final class BigDecimalFloatingConstructorCheck extends RuleCheck {
             case TokenTypes.NUM_FLOAT, TokenTypes.NUM_DOUBLE -> NumberKind.FLOATING;
             case TokenTypes.NUM_INT, TokenTypes.NUM_LONG, TokenTypes.CHAR_LITERAL -> NumberKind.INTEGRAL;
             case TokenTypes.EXPR, TokenTypes.UNARY_PLUS, TokenTypes.UNARY_MINUS -> {
-                var operand = valueDetailAST.getFirstChild();
+                var operand = JavaSource.firstOperand(valueDetailAST);
                 yield numberKind(operand);
             }
             case TokenTypes.TYPECAST -> declaredKind(valueDetailAST.findFirstToken(TokenTypes.TYPE));
             case TokenTypes.PLUS, TokenTypes.MINUS, TokenTypes.STAR, TokenTypes.DIV, TokenTypes.MOD -> {
-                var left = numberKind(valueDetailAST.getFirstChild());
-                var right = numberKind(valueDetailAST.getLastChild());
+                var left = numberKind(JavaSource.firstOperand(valueDetailAST));
+                var right = numberKind(JavaSource.lastOperand(valueDetailAST));
                 yield numericPromotion(left, right);
             }
             case TokenTypes.IDENT, TokenTypes.DOT -> variableKind(valueDetailAST);

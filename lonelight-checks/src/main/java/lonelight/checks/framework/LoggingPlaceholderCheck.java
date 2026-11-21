@@ -59,7 +59,7 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST root) {
-        source = new JavaSource(root);
+        source = indexSource(root);
         javaVariables = new JavaVariables(root);
     }
 
@@ -80,11 +80,45 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
             return;
         }
         var message = messageArgument(callDetailAST);
-        if (message != null && !JavaSource.descendants(message, TokenTypes.PLUS).isEmpty()
-                && !JavaSource.descendants(message, TokenTypes.STRING_LITERAL).isEmpty()
-                && !JavaSource.descendants(message, TokenTypes.IDENT).isEmpty()) {
+        if (JavaSource.descendants(message, TokenTypes.PLUS).stream().anyMatch(plus ->
+                hasStringOperand(plus) && hasValueIdentifier(plus))) {
             log(message, "logging.placeholder");
         }
+    }
+
+    /**
+     * 识别加法链中的字面量字符串操作数
+     *
+     * @param expression 加法表达式或其操作数
+     * @return 加法链直接连接字符串字面量时为 true
+     */
+    private boolean hasStringOperand(DetailAST expression) {
+        return switch (expression.getType()) {
+            case TokenTypes.STRING_LITERAL, TokenTypes.TEXT_BLOCK_LITERAL_BEGIN -> true;
+            case TokenTypes.PLUS -> JavaSource.children(expression).stream().anyMatch(this::hasStringOperand);
+            case TokenTypes.QUESTION -> {
+                var condition = JavaSource.firstOperand(expression);
+                yield JavaSource.children(expression).stream()
+                        .anyMatch(child -> child != condition && hasStringOperand(child));
+            }
+            case TokenTypes.TYPECAST -> source.isType(JavaSource.typeName(expression.findFirstToken(TokenTypes.TYPE)), "java.lang.String")
+                    && hasStringOperand(JavaSource.lastOperand(expression));
+            default -> false;
+        };
+    }
+
+    /**
+     * 判断表达式是否使用值或调用名称，跳过类型转换的类型名
+     *
+     * @param expression 待检查的表达式
+     * @return 表达式包含值或调用名称时为 true
+     */
+    private static boolean hasValueIdentifier(DetailAST expression) {
+        if (expression.getType() == TokenTypes.TYPE) {
+            return false;
+        }
+        return expression.getType() == TokenTypes.IDENT
+                || JavaSource.children(expression).stream().anyMatch(LoggingPlaceholderCheck::hasValueIdentifier);
     }
 
     /**
@@ -96,10 +130,15 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
     private DetailAST messageArgument(DetailAST callDetailAST) {
         var arguments = callDetailAST.findFirstToken(TokenTypes.ELIST);
         var first = arguments == null ? null : arguments.getFirstChild();
-        if (first == null || first.getFirstChild().getType() != TokenTypes.IDENT) {
+        if (first == null) {
+            return null;
+        }
+        var argument = JavaSource.firstOperand(first);
+        String name = receiverName(argument);
+        if (name.isEmpty()) {
             return first;
         }
-        var marker = javaVariables.find(callDetailAST, first.getFirstChild().getText(), false);
+        var marker = javaVariables.find(callDetailAST, name, argument.getType() == TokenTypes.DOT);
         if (marker == null || marker.getType() == TokenTypes.PATTERN_VARIABLE_DEF
                 || !source.isType(JavaSource.typeName(marker.findFirstToken(TokenTypes.TYPE)), "org.slf4j.Marker")) {
             return first;
@@ -127,6 +166,6 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
                     && type != null && source.isType(JavaSource.typeName(type), "org.slf4j.Logger");
         }
         DetailAST owner = JavaSource.enclosingType(call);
-        return name.equals("log") && owner != null && source.hasAnnotation(owner, "lombok.extern.slf4j.Slf4j");
+        return name.equals("log") && owner != null && source.hasKnownAnnotation(owner, "lombok.extern.slf4j.Slf4j");
     }
 }

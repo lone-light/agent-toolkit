@@ -81,4 +81,21 @@ class ExecutorFactoryCheckTest extends CustomCheckTest {
                 }
                 """, 0);
     }
+
+    /**
+     * 验证匿名类中声明的方法可以遮蔽静态导入的工厂
+     */
+    @Test
+    void scan_anonymousClass_respectsLocalFactory() throws Exception {
+        verify(ExecutorFactoryCheck.class, """
+                import static java.util.concurrent.Executors.newFixedThreadPool;
+                class Example {
+                    Runnable task = new Runnable() {
+                        void newFixedThreadPool(int size) {}
+                        public void run() { newFixedThreadPool(1); }
+                    };
+                    void fromJdk() { newFixedThreadPool(2); }
+                }
+                """, 1);
+    }
 }

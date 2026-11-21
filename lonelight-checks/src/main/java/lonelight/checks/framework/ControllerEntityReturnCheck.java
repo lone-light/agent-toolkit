@@ -50,7 +50,7 @@ public final class ControllerEntityReturnCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST root) {
-        source = new JavaSource(root);
+        source = indexSource(root);
     }
 
     /**

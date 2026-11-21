@@ -17,32 +17,6 @@ import java.util.Set;
  */
 public final class TypeJavadocCheck extends RuleCheck {
     /**
-     * 收集正文可见文字所在的源码行
-     *
-     * @param detailNode Javadoc 节点，可为空
-     * @param lines      待更新的行号集合
-     */
-    private static void collectTextLines(DetailNode detailNode, Set<Integer> lines) {
-        if (detailNode == null) {
-            return;
-        }
-        int type = detailNode.getType();
-        if (type == JavadocCommentsTokenTypes.JAVADOC_INLINE_TAG
-                || type == JavadocCommentsTokenTypes.TEXT && !detailNode.getText().isBlank()) {
-            lines.add(detailNode.getLineNumber());
-            return;
-        }
-        if (type == JavadocCommentsTokenTypes.TEXT || type == JavadocCommentsTokenTypes.HTML_COMMENT
-                || type == JavadocCommentsTokenTypes.HTML_TAG_START || type == JavadocCommentsTokenTypes.HTML_TAG_END) {
-            return;
-        }
-        for (DetailNode childDetailNode = detailNode.getFirstChild(); childDetailNode != null;
-             childDetailNode = childDetailNode.getNextSibling()) {
-            collectTextLines(childDetailNode, lines);
-        }
-    }
-
-    /**
      * 监听可附加类型 Javadoc 的声明
      *
      * @return 类型声明节点类别
@@ -94,7 +68,7 @@ public final class TypeJavadocCheck extends RuleCheck {
             if (detailNode.getType() == JavadocCommentsTokenTypes.JAVADOC_BLOCK_TAG) {
                 break;
             }
-            collectTextLines(detailNode, summaryLines);
+            JavadocText.collectLines(detailNode, summaryLines);
         }
         if (summaryLines.size() != 1) {
             log(name, "javadoc.type.summary");
@@ -102,12 +76,7 @@ public final class TypeJavadocCheck extends RuleCheck {
         var authors = JavadocUtil.getAllNodesOfType(docDetailNode, JavadocCommentsTokenTypes.JAVADOC_BLOCK_TAG).stream()
                 .map(DetailNode::getFirstChild).filter(detailNode -> detailNode.getType() == JavadocCommentsTokenTypes.AUTHOR_BLOCK_TAG)
                 .toList();
-        if (authors.isEmpty() || authors.stream().anyMatch(author -> {
-            var description = JavadocUtil.findFirstToken(author, JavadocCommentsTokenTypes.DESCRIPTION);
-            Set<Integer> lines = new HashSet<>();
-            collectTextLines(description, lines);
-            return lines.isEmpty();
-        })) {
+        if (authors.isEmpty() || authors.stream().anyMatch(author -> !JavadocText.hasDescription(author))) {
             log(name, "javadoc.type.author");
         }
     }

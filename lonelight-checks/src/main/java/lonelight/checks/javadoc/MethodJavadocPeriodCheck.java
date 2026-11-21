@@ -37,8 +37,7 @@ public final class MethodJavadocPeriodCheck extends RuleCheck {
     @Override
     public void visitToken(DetailAST detailAST) {
         MethodDocumentation.forEachProseLine(detailAST, (lineNumber, prose) -> {
-            String visible = prose.replaceAll("<[^>]+>", "").strip();
-            if (visible.matches(".*[.。]$")) {
+            if (prose.endsWith(".") || prose.endsWith("。")) {
                 log(lineNumber, "javadoc.period");
             }
         });

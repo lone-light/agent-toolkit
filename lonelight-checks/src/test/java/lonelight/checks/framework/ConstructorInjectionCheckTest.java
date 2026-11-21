@@ -100,4 +100,19 @@ class ConstructorInjectionCheckTest extends CustomCheckTest {
                 }
                 """, 1);
     }
+
+    /**
+     * 验证内部类构造器的限定接收者不占用注入参数
+     */
+    @Test
+    void scan_qualifiedReceiver_checksOnlyInjectedFields() throws Exception {
+        verify(ConstructorInjectionCheck.class, """
+                class Example {
+                    class Service {
+                        String label;
+                        @jakarta.inject.Inject Service(Example Example.this, String label) { this.label = label; }
+                    }
+                }
+                """, 1);
+    }
 }

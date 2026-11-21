@@ -43,6 +43,9 @@
     </module>
     <!-- 解析 Java 语法并运行通用检查 -->
     <module name="TreeWalker">
+        <!-- 单个文件解析失败时保留错误并继续扫描后续文件 -->
+        <property name="skipFileOnJavaParseException" value="true"/>
+        <property name="javaParseExceptionSeverity" value="error"/>
         <!-- 顶层类型名与文件名一致 -->
         <module name="OuterTypeFilename">
             <property name="severity" value="error"/>
@@ -515,15 +518,15 @@
         <module name="SuppressWarningsHolder"/>
         <!-- 支持使用成对 CHECKSTYLE.OFF 与 CHECKSTYLE.ON 按检查器名称局部豁免 -->
         <module name="SuppressionCommentFilter">
-            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
-            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
-            <property name="checkFormat" value="$1"/>
+            <property name="offCommentFormat" value="\bCHECKSTYLE\.OFF: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="onCommentFormat" value="\bCHECKSTYLE\.ON: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="checkFormat" value="(?:^|\.)(?:$1)(?:Check)?$"/>
         </module>
         <!-- 支持使用成对 CHECKSTYLE.OFF 与 CHECKSTYLE.ON 按模块 id 局部豁免 -->
         <module name="SuppressionCommentFilter">
-            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
-            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
-            <property name="idFormat" value="$1"/>
+            <property name="offCommentFormat" value="\bCHECKSTYLE\.OFF: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="onCommentFormat" value="\bCHECKSTYLE\.ON: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="idFormat" value="^(?:$1)$"/>
         </module>
         <!-- 豁免真实 JUnit 方法命名、覆写文档和 HTTP 方法重复文档 -->
         <module name="lonelight.checks.framework.FrameworkMethodFilter"/>

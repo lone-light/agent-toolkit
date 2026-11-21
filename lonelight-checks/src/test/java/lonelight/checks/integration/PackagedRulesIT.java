@@ -140,6 +140,14 @@ class PackagedRulesIT {
                 if (profile.equals("project")) {
                     verifyValidationExamples(manualEvents, rules.get(ANNOTATION_ATTRIBUTE), sampleSourcePath);
                     verifyJUnitExamples(manualEvents, sampleSourcePath);
+                    Path namingCase = sampleSourcePath.resolve("main/java/project/NamingCases.java");
+                    var namingLines = Files.readAllLines(namingCase);
+                    var annotatedNames = manualEvents.stream()
+                            .filter(event -> event.getFileName().equals(namingCase.toString())
+                                    && CheckTestSupport.matches(event, "VariableTypeName"))
+                            .map(event -> namingLines.get(event.getLine() - 1).strip())
+                            .filter(line -> line.contains("@TypeUse")).toList();
+                    assertEquals(List.of("NamingCases.@TypeUse OrderShape other) {"), annotatedNames);
                     assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, TYPE_SUFFIX)).count());
                     var defaultEvents = CheckTestSupport.scan(projectConfiguration, examples.filesFor(TYPE_SUFFIX), loader);
                     assertTrue(defaultEvents.stream().noneMatch(event -> CheckTestSupport.matches(event, TYPE_SUFFIX)));

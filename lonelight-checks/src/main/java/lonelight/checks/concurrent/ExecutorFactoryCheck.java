@@ -36,11 +36,10 @@ public final class ExecutorFactoryCheck extends RuleCheck {
      * @return 存在本地声明时为 true
      */
     private static boolean hasLocalMethod(DetailAST usageDetailAST, String name) {
-        for (var ownerDetailAST = JavaSource.enclosingType(usageDetailAST); ownerDetailAST != null;
-             ownerDetailAST = JavaSource.enclosingType(ownerDetailAST)) {
-            var members = JavaSource.children(ownerDetailAST.findFirstToken(TokenTypes.OBJBLOCK));
-            if (members.stream().anyMatch(member -> member.getType() == TokenTypes.METHOD_DEF
-                    && JavaSource.declarationName(member).getText().equals(name))) {
+        for (var owner = usageDetailAST.getParent(); owner != null; owner = owner.getParent()) {
+            if (owner.getType() == TokenTypes.OBJBLOCK && JavaSource.children(owner).stream()
+                    .anyMatch(member -> member.getType() == TokenTypes.METHOD_DEF
+                            && JavaSource.declarationName(member).getText().equals(name))) {
                 return true;
             }
         }

@@ -123,4 +123,43 @@ class RequestValidationCheckTest extends CustomCheckTest {
                 .filter(event -> CheckTestSupport.matches(event, RequestValidationCheck.class.getName())).toList();
         assertEquals(1, events.size());
     }
+
+    /**
+     * 验证带类型注解的限定父类也能提供继承的约束
+     */
+    @Test
+    void scan_annotatedSupertype_requiresValidation() throws Exception {
+        verify(RequestValidationCheck.class, """
+                import jakarta.validation.constraints.NotNull;
+                import org.springframework.web.bind.annotation.*;
+                @java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE) @interface Mark {}
+                class Models { static class Base { @NotNull String text; } }
+                class Input extends Models.@Mark Base {}
+                @RestController class Example {
+                    @PostMapping void submit(@RequestBody Input input) {}
+                }
+                """, 1);
+    }
+
+    /**
+     * 验证跨文件模型能解析同一编译单元中的包级父类
+     */
+    @Test
+    void scan_packagePrivateSuperclassInModelFile_requiresValidation() throws Exception {
+        CheckTestSupport.write(directoryPath, "Input.java", """
+                package app.api;
+                public class Input extends Base {}
+                class Base { @jakarta.validation.constraints.NotNull String text; }
+                """);
+        var controller = CheckTestSupport.write(directoryPath, "Orders.java", """
+                package app.web;
+                @org.springframework.web.bind.annotation.RestController class Orders {
+                    @org.springframework.web.bind.annotation.PostMapping
+                    void submit(@org.springframework.web.bind.annotation.RequestBody app.api.Input input) {}
+                }
+                """);
+        var check = CheckTestSupport.rule(RequestValidationCheck.class.getName());
+        var events = CheckTestSupport.scan(CheckTestSupport.isolate(check, true), controller);
+        assertEquals(1, events.size());
+    }
 }

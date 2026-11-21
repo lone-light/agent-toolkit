@@ -28,4 +28,34 @@ class LoggingPlaceholderCheckTest extends CustomCheckTest {
         verify(LoggingPlaceholderCheck.class, "class Example { void run(org.slf4j.Logger logger) { logger.info(\"name=\" + name); } }", 1);
         verify(LoggingPlaceholderCheck.class, "class Example { void run(org.slf4j.Logger logger, org.slf4j.Marker marker) { logger.info(template, \"name=\" + name); logger.info(marker, \"name=\" + name); } }", 1);
     }
+
+    /**
+     * 验证消息字符串拼接与数值运算按各自的表达式判断
+     */
+    @Test
+    void scan_arithmeticInMessage_doesNotReportStringConcatenation() throws Exception {
+        verify(LoggingPlaceholderCheck.class, """
+                class Example {
+                    void run(org.slf4j.Logger log, int index) {
+                        log.info(String.format("position %d", index + 1));
+                        log.info(index + 1 > 0 ? "ready" : "empty");
+                        log.info((String) "prefix" + "suffix");
+                        log.info("key".length() + index > 0 ? "yes" : "no");
+                    }
+                }
+                """, 0);
+        verify(LoggingPlaceholderCheck.class, """
+                class Example {
+                    org.slf4j.Marker marker;
+                    void run(org.slf4j.Logger log, int index) {
+                        log.info((this.marker), ("index=" + index));
+                        log.info(index == 0 ? "empty" : "index=" + index);
+                        log.info("position " + 1 + index);
+                        log.info(index + 1 + " items");
+                        log.info((index == 0 ? "empty" : ("item ")) + index);
+                        log.info((java.lang.String) "position " + index);
+                    }
+                }
+                """, 6);
+    }
 }

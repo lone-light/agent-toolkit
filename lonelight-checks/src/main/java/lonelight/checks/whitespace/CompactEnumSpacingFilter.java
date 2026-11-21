@@ -7,6 +7,7 @@ import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import com.puppycrawl.tools.checkstyle.checks.blocks.LeftCurlyCheck;
 import com.puppycrawl.tools.checkstyle.checks.whitespace.WhitespaceAroundCheck;
+import com.puppycrawl.tools.checkstyle.utils.CheckUtil;
 import lonelight.checks.JavaSource;
 
 /**
@@ -42,13 +43,14 @@ public final class CompactEnumSpacingFilter extends AbstractAutomaticBean implem
      */
     private static boolean isCompactBrace(DetailAST enumeration, TreeWalkerAuditEvent event) {
         var body = enumeration.findFirstToken(TokenTypes.OBJBLOCK);
-        if (body == null || body.findFirstToken(TokenTypes.ENUM_CONSTANT_DEF) == null
-                || body.findFirstToken(TokenTypes.SEMI) != null) {
+        if (body == null || body.findFirstToken(TokenTypes.ENUM_CONSTANT_DEF) == null) {
             return false;
         }
         var open = body.findFirstToken(TokenTypes.LCURLY);
         var close = body.findFirstToken(TokenTypes.RCURLY);
-        if (open == null || close == null || open.getLineNo() != close.getLineNo()) {
+        var separator = body.findFirstToken(TokenTypes.SEMI);
+        if (open == null || close == null || open.getLineNo() != close.getLineNo()
+                || separator != null && CheckUtil.getNextNonCommentAst(separator) != close) {
             return false;
         }
         var brace = event.getTokenType() == TokenTypes.RCURLY ? close : open;

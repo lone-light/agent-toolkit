@@ -3,6 +3,7 @@ package lonelight.checks.imports;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import lonelight.checks.JavaSource;
+import lonelight.checks.JavaVariables;
 import lonelight.checks.RuleCheck;
 
 import java.util.HashMap;
@@ -32,14 +33,32 @@ public final class QualifiedAnnotationCheck extends RuleCheck {
     /**
      * 判断标识符是否处于简单类型引用位置
      *
-     * @param ident 待检查的标识符节点
-     * @return 属于规则识别的类型位置时为 true
+     * @param identDetailAST 待检查的标识符节点
+     * @param javaVariables  当前文件的变量索引
+     * @return 属于类型位置或限定器无法解析为变量时为 true
      */
-    private static boolean isShortType(DetailAST ident) {
-        int parent = ident.getParent().getType();
-        return parent == TokenTypes.TYPE || parent == TokenTypes.TYPE_ARGUMENT || parent == TokenTypes.ARRAY_DECLARATOR
-                || parent == TokenTypes.EXTENDS_CLAUSE || parent == TokenTypes.IMPLEMENTS_CLAUSE
-                || parent == TokenTypes.LITERAL_NEW;
+    private static boolean isShortType(DetailAST identDetailAST, JavaVariables javaVariables) {
+        var qualifier = identDetailAST;
+        var parent = qualifier.getParent();
+        while (parent.getType() == TokenTypes.DOT && parent.getFirstChild() == qualifier) {
+            if (parent.getLastChild().getType() == TokenTypes.LITERAL_CLASS) {
+                return true;
+            }
+            qualifier = parent;
+            parent = qualifier.getParent();
+        }
+        int kind = parent.getType();
+        if (kind == TokenTypes.TYPE || kind == TokenTypes.TYPE_ARGUMENT || kind == TokenTypes.ARRAY_DECLARATOR
+                || kind == TokenTypes.EXTENDS_CLAUSE || kind == TokenTypes.IMPLEMENTS_CLAUSE
+                || kind == TokenTypes.LITERAL_NEW || kind == TokenTypes.PERMITS_CLAUSE || kind == TokenTypes.ANNOTATION) {
+            return true;
+        }
+        boolean methodReference = kind == TokenTypes.METHOD_REF && parent.getFirstChild() == qualifier;
+        if (methodReference && parent.getLastChild().getType() == TokenTypes.LITERAL_NEW) {
+            return true;
+        }
+        return (qualifier != identDetailAST || methodReference)
+                && javaVariables.find(identDetailAST, identDetailAST.getText(), false) == null;
     }
 
     /**
@@ -80,8 +99,14 @@ public final class QualifiedAnnotationCheck extends RuleCheck {
                 String written = JavaSource.annotationName(annotation);
                 annotationsByName.computeIfAbsent(JavaSource.simpleName(written), ignored -> new HashSet<>()).add(written);
             }
+        }
+        if (annotationsByName.values().stream().flatMap(Set::stream).noneMatch(QualifiedAnnotationCheck::isPackageQualified)) {
+            return;
+        }
+        var javaVariables = new JavaVariables(root);
+        for (DetailAST node = root; node != null; node = node.getNextSibling()) {
             for (DetailAST ident : JavaSource.descendants(node, TokenTypes.IDENT)) {
-                if (isShortType(ident)) {
+                if (annotationsByName.containsKey(ident.getText()) && isShortType(ident, javaVariables)) {
                     shortTypeNames.add(ident.getText());
                 }
             }

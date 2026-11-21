@@ -83,4 +83,23 @@ class BigDecimalFloatingConstructorCheckTest extends CustomCheckTest {
                 }
                 """, 1);
     }
+
+    /**
+     * 验证等价的括号写法保留浮点表达式类型
+     */
+    @Test
+    void scan_parenthesizedOperands_preservesNumericPromotion() throws Exception {
+        verify(BigDecimalFloatingConstructorCheck.class, """
+                import java.math.BigDecimal;
+                class Example {
+                    void parse(double amount, int count) {
+                        new BigDecimal(((amount)));
+                        new BigDecimal(-(amount));
+                        new BigDecimal((count + 2) * (amount + 1));
+                        new BigDecimal((count + 2) * (count + 1));
+                        new BigDecimal(("0.") + (amount));
+                    }
+                }
+                """, 3);
+    }
 }

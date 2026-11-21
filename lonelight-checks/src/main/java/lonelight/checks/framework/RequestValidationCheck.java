@@ -1,7 +1,6 @@
 package lonelight.checks.framework;
 
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
-import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
@@ -47,7 +46,7 @@ public final class RequestValidationCheck extends RuleCheck {
         }
         var parameters = memberDetailAST.findFirstToken(TokenTypes.PARAMETERS);
         var returnType = memberDetailAST.findFirstToken(TokenTypes.TYPE);
-        if (parameters == null || parameters.hasChildren()
+        if (parameters == null || JavaSource.children(parameters).stream().anyMatch(FrameworkMethods::isValueParameter)
                 || returnType == null || returnType.findFirstToken(TokenTypes.LITERAL_VOID) != null) {
             return false;
         }
@@ -98,7 +97,7 @@ public final class RequestValidationCheck extends RuleCheck {
     @Override
     public void beginTree(DetailAST rootDetailAST) {
         this.rootDetailAST = rootDetailAST;
-        javaSource = new JavaSource(rootDetailAST);
+        javaSource = indexSource(rootDetailAST);
         apiSourceModels = null;
     }
 
@@ -113,7 +112,7 @@ public final class RequestValidationCheck extends RuleCheck {
             return;
         }
         for (var parameterDetailAST : JavaSource.children(methodDetailAST.findFirstToken(TokenTypes.PARAMETERS))) {
-            if (parameterDetailAST.getType() == TokenTypes.PARAMETER_DEF && isCandidate(parameterDetailAST)) {
+            if (FrameworkMethods.isValueParameter(parameterDetailAST) && isCandidate(parameterDetailAST)) {
                 checkParameter(parameterDetailAST);
             }
         }
@@ -194,7 +193,7 @@ public final class RequestValidationCheck extends RuleCheck {
     private boolean hasConstrainedParents(ApiSourceModels.Model model, int clause, Set<String> visited) {
         for (var parentDetailAST : JavaSource.children(model.tree().findFirstToken(clause))) {
             if (parentDetailAST.getType() == TokenTypes.IDENT || parentDetailAST.getType() == TokenTypes.DOT) {
-                String name = FullIdent.createFullIdent(parentDetailAST).getText();
+                String name = JavaSource.qualifiedTypeName(parentDetailAST);
                 var parentModel = apiSourceModels.find(name, model.source(), model.tree());
                 if (parentModel != null && hasConstraints(parentModel, visited)) {
                     return true;

@@ -42,9 +42,8 @@ public final class MethodJavadocNumberingCheck extends RuleCheck {
     @Override
     public void visitToken(DetailAST detailAST) {
         MethodDocumentation.forEachProseLine(detailAST, (lineNumber, prose) -> {
-            String text = prose.startsWith("<p>") ? prose.substring("<p>".length()).stripLeading() : prose;
-            var prefix = STEP_PREFIX.matcher(text);
-            if (prefix.lookingAt() && prefix.end() < text.length()) {
+            var prefix = STEP_PREFIX.matcher(prose);
+            if (prefix.lookingAt() && prefix.end() < prose.length()) {
                 log(lineNumber, "javadoc.numbering");
             }
         });

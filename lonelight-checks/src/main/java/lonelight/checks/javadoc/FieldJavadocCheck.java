@@ -1,12 +1,15 @@
 package lonelight.checks.javadoc;
 
+import com.puppycrawl.tools.checkstyle.JavadocDetailNodeParser;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
+import com.puppycrawl.tools.checkstyle.api.JavadocCommentsTokenTypes;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import com.puppycrawl.tools.checkstyle.utils.JavadocUtil;
 import lonelight.checks.JavaSource;
 import lonelight.checks.RuleCheck;
 
-import java.util.regex.Pattern;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 检查实例字段和 record 组件是否有说明
@@ -18,25 +21,41 @@ public final class FieldJavadocCheck extends RuleCheck {
      * 当前文件的名称索引
      */
     private JavaSource source;
+    /**
+     * 最近解析组件说明的 record 声明
+     */
+    private DetailAST recordDetailAST;
+    /**
+     * 当前 record 的文档已说明的组件名
+     */
+    private Set<String> documentedNames = Set.of();
 
     /**
-     * 检查 record 类型的 Javadoc 是否说明了当前组件
+     * 读取 record 文档中已说明的组件名
      *
-     * @param nodeDetailAST 待检查的声明节点
-     * @return 存在同名有效参数说明时为 true
+     * @param recordDetailAST record 声明
+     * @return 有非空参数说明的组件名
      */
-    private static boolean hasRecordDescription(DetailAST nodeDetailAST) {
-        if (nodeDetailAST.getType() != TokenTypes.RECORD_COMPONENT_DEF) {
-            return false;
-        }
-        var owner = JavaSource.enclosingType(nodeDetailAST);
-        var documentation = owner == null ? null : JavadocUtil.getAttachedJavadocComment(owner);
+    private static Set<String> documentedComponents(DetailAST recordDetailAST) {
+        var documentation = JavadocUtil.getAttachedJavadocComment(recordDetailAST);
         if (documentation == null) {
-            return false;
+            return Set.of();
         }
-        String name = JavaSource.declarationName(nodeDetailAST).getText();
-        return Pattern.compile("@param\\s+" + Pattern.quote(name) + "\\s+[^\\s*]+")
-                .matcher(JavadocUtil.getJavadocCommentContent(documentation)).find();
+        var tree = new JavadocDetailNodeParser().parseJavadocComment(documentation).getTree();
+        if (tree == null) {
+            return Set.of();
+        }
+        Set<String> names = new HashSet<>();
+        for (var block : JavadocUtil.getAllNodesOfType(tree, JavadocCommentsTokenTypes.JAVADOC_BLOCK_TAG)) {
+            var tag = block.getFirstChild();
+            if (tag.getType() == JavadocCommentsTokenTypes.PARAM_BLOCK_TAG && JavadocText.hasDescription(tag)) {
+                var name = JavadocUtil.findFirstToken(tag, JavadocCommentsTokenTypes.PARAMETER_NAME);
+                if (name != null) {
+                    names.add(name.getText());
+                }
+            }
+        }
+        return names;
     }
 
     /**
@@ -68,7 +87,9 @@ public final class FieldJavadocCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST root) {
-        source = new JavaSource(root);
+        source = indexSource(root);
+        recordDetailAST = null;
+        documentedNames = Set.of();
     }
 
     /**
@@ -94,6 +115,24 @@ public final class FieldJavadocCheck extends RuleCheck {
                 && !hasFieldJavadoc(nodeDetailAST)) {
             log(JavaSource.declarationName(nodeDetailAST), "field.javadoc");
         }
+    }
+
+    /**
+     * 在所属 record 的文档中查找组件说明
+     *
+     * @param nodeDetailAST 字段或组件
+     * @return 组件有对应的参数说明时为 true
+     */
+    private boolean hasRecordDescription(DetailAST nodeDetailAST) {
+        if (nodeDetailAST.getType() != TokenTypes.RECORD_COMPONENT_DEF) {
+            return false;
+        }
+        var owner = nodeDetailAST.getParent().getParent();
+        if (owner != recordDetailAST) {
+            documentedNames = documentedComponents(owner);
+            recordDetailAST = owner;
+        }
+        return documentedNames.contains(JavaSource.declarationName(nodeDetailAST).getText());
     }
 
     /**

@@ -145,7 +145,7 @@
 | `naming.TestMethodNameCheck` | warning | JUnit 方法采用 动作_条件_预期 的命名 |
 | `framework.BooleanFieldNameCheck` | warning | 报告 REST 请求或响应模型中以 `is` 加大写字母开头的 `boolean`、`Boolean` 实例字段和 record 组件，例如 `isReady` |
 
-`VariableTypeNameCheck` 检查显式声明对象类型的实例字段、参数、局部变量和 record 组件。它跳过基本类型、数组、泛型类型参数（如 `T`）、`var`、静态字段和 `ignoredTypes` 中的类型。例如 `Request<User> request` 按 `Request` 检查。下表使用默认配置。
+`VariableTypeNameCheck` 检查显式声明对象类型的实例字段、参数、局部变量（含资源变量和模式变量）及 record 组件。带类型注解的 `Outer.@Mark Inner` 按 `Inner` 检查。它跳过基本类型、数组、可变参数、泛型类型参数、`var`、静态字段、显式接收者、未命名变量和 `ignoredTypes` 中的类型。例如 `Request<User> request` 按 `Request` 检查。下表使用默认配置。
 
 | 声明 | 结果 |
 | --- | --- |
@@ -180,7 +180,7 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 | `javadoc.FieldJavadocCheck` | warning | 实例字段和 record 组件提供说明，显式隐藏字段除外 |
 | `javadoc.TypeJavadocCheck` | warning | 类型 Javadoc 的职责说明占一行，`@author` 填写非空内容。通用配置报告公开类型缺少 Javadoc，项目配置报告非公开类型缺少 Javadoc |
 
-- 单句 Javadoc 的 `/**`、正文和 `*/` 各占一行。句号和步骤编号检查跳过 `{@code}`、`{@literal}`、HTML `code`、`pre` 和 HTML 注释。
+- 单句 Javadoc 的 `/**`、正文和 `*/` 各占一行。句号和步骤编号检查跳过 `{@code}`、`{@literal}`、`{@snippet}`、HTML `code`、`pre` 和 HTML 注释。
 - 字段说明可用非空 Javadoc 或 `@Schema.description`。record 组件也可用所属类型 Javadoc 中带说明的同名 `@param`。`@JsonIgnore` 启用时和 `@Schema(hidden = true)` 均可豁免字段说明检查。启用通用配置时，已有 record Javadoc 中的组件 `@param` 仍由 `JavadocType` 检查。
 
 ### 2.3 校验注解
@@ -252,6 +252,8 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 
 两份配置都扫描 `.java` 文件。自定义检查使用 Java 语法树，依据包声明、导入和源码中的类型声明识别名称。接口注解检查识别直接声明在方法上的标准 Spring 映射注解。Spring 映射、JUnit 测试方法和配置中的校验注解均支持普通导入及通配导入。
 
+遇到无法解析的 Java 文件时，两份配置都会在该文件上报告一条 `TreeWalker` 解析错误，跳过该文件的语法树检查并继续扫描其他文件。
+
 ### 3.2 过滤与局部豁免
 
 | 辅助模块 | 生效范围 |
@@ -259,7 +261,7 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 | `CompactEnumSpacingFilter` | 只含常量的单行枚举豁免花括号内侧的空格和换行检查 |
 | `JavadocParagraphSpacingFilter` | 独占一行的 `<p>` 标签可直接分隔正文 |
 | `SuppressWarningsHolder` 与 `SuppressWarningsFilter` | 两份配置均支持按检查名称或 id 声明局部豁免 |
-| `SuppressionCommentFilter` | 两份配置均支持用成对的 `CHECKSTYLE.OFF` 和 `CHECKSTYLE.ON` 按检查名称局部豁免。通用配置也支持按 ID 匹配 |
+| `SuppressionCommentFilter` | 用成对的 `CHECKSTYLE.OFF` 和 `CHECKSTYLE.ON` 按完整规则短名豁免语法树检查，可省略 `Check` 后缀。多个名称用 `\|` 分隔。通用配置也接受完整模块 ID |
 | `SuppressWithPlainTextCommentFilter` | `// CHECKSTYLE.OFF: LineLength` 和 `// CHECKSTYLE.ON: LineLength` 之间豁免行宽检查 |
 | `BeforeExecutionExclusionFileFilter` | 跳过路径中的 `target`、`build`、`generated-sources`、`generated-test-sources` 目录。路径含 `src/main/java` 或 `src/test/java` 的文件仍参与扫描 |
 | `SuppressionSingleFilter` | 项目配置在 `src/test/java` 下豁免 `MagicNumber`、`MultipleStringLiterals`、`FieldJavadocCheck` 和 `ControllerApiDocumentationCheck` |
@@ -271,4 +273,4 @@ JUnit 方法名由下划线分隔为三段，每段使用英文字母和数字�
 UserDTO request;
 ```
 
-字段豁免使用 `fieldAnnotations`，所属类型的豁免使用 `typeAnnotations`。指定 `AccessLevel.NONE` 的 Lombok `@Getter` 或 `@Setter` 不提供豁免。
+字段豁免使用 `fieldAnnotations`，所属类型的豁免使用 `typeAnnotations`。Lombok 类级访问器只作用于实例字段。字段级 `@Getter`、`@Setter` 可以分别覆盖同类的类级注解。`AccessLevel.NONE` 会关闭对应访问器，`final` 字段也不会因 `@Setter` 获得豁免。

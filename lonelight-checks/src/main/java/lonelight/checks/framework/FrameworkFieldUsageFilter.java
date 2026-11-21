@@ -7,6 +7,7 @@ import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import lonelight.checks.JavaSource;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -15,6 +16,9 @@ import java.util.Set;
  * @author lonelight
  */
 public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean implements TreeWalkerFilter {
+    private static final Set<String> LOMBOK_TYPE_ANNOTATIONS = Set.of(
+            "lombok.Getter", "lombok.Setter", "lombok.Data", "lombok.Value");
+
     /**
      * 可豁免未使用检查的字段注解
      */
@@ -26,20 +30,28 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
     private Set<String> typeAnnotations = Set.of();
 
     /**
+     * 当前文件的源码索引
+     */
+    private JavaSource source;
+    /**
+     * 当前文件的候选字段声明
+     */
+    private List<DetailAST> fields = List.of();
+
+    /**
      * 判断声明是否由框架使用或显式豁免
      *
+     * @param field       检查的字段
      * @param declaration 字段或类型声明节点
      * @param allowed     允许豁免的注解全限定名
-     * @param source      当前文件的名称索引
+     * @param source      当前文件的源码索引
      * @return 存在生效的豁免注解时为 true
      */
-    private static boolean hasExemption(DetailAST declaration, Set<String> allowed, JavaSource source) {
+    private static boolean hasExemption(DetailAST field, DetailAST declaration, Set<String> allowed, JavaSource source) {
         for (DetailAST annotation : JavaSource.annotations(declaration)) {
-            if (allowed.stream().anyMatch(name -> source.isType(JavaSource.annotationName(annotation), name))) {
-                DetailAST value = JavaSource.attribute(annotation, "value");
-                boolean disabled = value != null && JavaSource.descendants(value, TokenTypes.IDENT).stream()
-                        .anyMatch(identifier -> identifier.getText().equals("NONE"));
-                if (!disabled) {
+            for (String name : allowed) {
+                if (source.isKnownAnnotationType(annotation, name)
+                        && appliesToField(annotation, name, field, declaration, source)) {
                     return true;
                 }
             }
@@ -48,15 +60,46 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
     }
 
     /**
+     * 按字段修饰符和字段级覆盖判断 Lombok 注解是否生效
+     *
+     * @param annotation  当前注解
+     * @param name        注解全限定名
+     * @param field       检查的字段
+     * @param declaration 注解所属字段或类型
+     * @param source      当前文件的源码索引
+     * @return 注解可用于此字段时为 true
+     */
+    private static boolean appliesToField(DetailAST annotation, String name, DetailAST field,
+                                          DetailAST declaration, JavaSource source) {
+        if (field != declaration && LOMBOK_TYPE_ANNOTATIONS.contains(name) && JavaSource.isExplicitlyStatic(field)) {
+            return false;
+        }
+        if (!name.equals("lombok.Getter") && !name.equals("lombok.Setter")) {
+            return true;
+        }
+        boolean overridden = field != declaration && source.hasKnownAnnotation(field, name);
+        boolean finalField = field.findFirstToken(TokenTypes.MODIFIERS).findFirstToken(TokenTypes.FINAL) != null;
+        if (overridden || name.equals("lombok.Setter") && finalField) {
+            return false;
+        }
+        DetailAST value = JavaSource.attribute(annotation, "value");
+        DetailAST level = value == null ? null : JavaSource.firstOperand(value);
+        if (level != null && level.getType() == TokenTypes.DOT) {
+            level = level.getLastChild();
+        }
+        return level == null || !level.getText().equals("NONE");
+    }
+
+    /**
      * 识别显式声明的 unused 豁免
      *
      * @param declaration 字段或类型声明节点
-     * @param source      当前文件的名称索引
+     * @param source      当前文件的源码索引
      * @return 明确抑制 unused 警告时为 true
      */
     private static boolean hasUnusedSuppression(DetailAST declaration, JavaSource source) {
         return JavaSource.annotations(declaration).stream()
-                .filter(annotation -> source.isType(JavaSource.annotationName(annotation), "java.lang.SuppressWarnings"))
+                .filter(annotation -> source.isKnownAnnotationType(annotation, "java.lang.SuppressWarnings"))
                 .flatMap(annotation -> JavaSource.descendants(annotation, TokenTypes.STRING_LITERAL).stream())
                 .anyMatch(literal -> literal.getText().equals("\"unused\""));
     }
@@ -100,17 +143,21 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
         if (!event.getSourceName().endsWith(".UnusedPrivateFieldCheck")) {
             return true;
         }
-        JavaSource source = new JavaSource(event.rootAst());
-        for (DetailAST field : JavaSource.descendants(event.rootAst(), TokenTypes.VARIABLE_DEF)) {
+        JavaSource current = JavaSource.forEvent(event, source);
+        if (source != current) {
+            fields = JavaSource.descendants(event.rootAst(), TokenTypes.VARIABLE_DEF);
+            source = current;
+        }
+        for (DetailAST field : fields) {
             DetailAST name = JavaSource.declarationName(field);
             if (name.getLineNo() != event.getLine() || name.getColumnNo() != event.getColumnCharIndex()) {
                 continue;
             }
-            if (hasExemption(field, fieldAnnotations, source)) {
+            if (hasExemption(field, field, fieldAnnotations, source)) {
                 return false;
             }
             DetailAST type = JavaSource.enclosingType(field);
-            return type == null || !hasExemption(type, typeAnnotations, source);
+            return type == null || !hasExemption(field, type, typeAnnotations, source);
         }
         return true;
     }

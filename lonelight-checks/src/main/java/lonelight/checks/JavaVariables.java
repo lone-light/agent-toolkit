@@ -88,6 +88,8 @@ public final class JavaVariables {
         var nameDetailAST = switch (nodeDetailAST.getType()) {
             case TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF,
                  TokenTypes.PATTERN_VARIABLE_DEF, TokenTypes.LAMBDA -> nodeDetailAST.findFirstToken(TokenTypes.IDENT);
+            case TokenTypes.RESOURCE -> nodeDetailAST.findFirstToken(TokenTypes.TYPE) == null
+                    ? null : nodeDetailAST.findFirstToken(TokenTypes.IDENT);
             default -> null;
         };
         if (nameDetailAST != null) {
@@ -97,6 +99,26 @@ public final class JavaVariables {
              childDetailAST = childDetailAST.getNextSibling()) {
             index(childDetailAST);
         }
+    }
+
+    /**
+     * 确认变量在引用位置生效的作用域
+     *
+     * @param declaration 变量声明
+     * @param usage       引用位置
+     * @return 声明的有效作用域，在循环表达式或资源处理器中不可见时为 null
+     */
+    private static DetailAST visibleScope(DetailAST declaration, DetailAST usage) {
+        DetailAST parent = declaration.getParent();
+        if (parent.getType() == TokenTypes.FOR_EACH_CLAUSE && enclosingDepth(usage, parent) >= 0) {
+            return null;
+        }
+        if (declaration.getType() == TokenTypes.RESOURCE) {
+            var specification = parent.getParent();
+            var body = specification.getParent().findFirstToken(TokenTypes.SLIST);
+            return enclosingDepth(usage, specification) >= 0 ? specification : body;
+        }
+        return scope(declaration);
     }
 
     /**
@@ -113,10 +135,16 @@ public final class JavaVariables {
         for (var declarationDetailAST : declarations.getOrDefault(name, List.of())) {
             int container = declarationDetailAST.getParent().getType();
             boolean field = container == TokenTypes.OBJBLOCK || container == TokenTypes.RECORD_COMPONENTS;
-            if (explicitThis && !field) {
-                continue;
+            if (explicitThis) {
+                var body = usageDetailAST;
+                while (body != null && body.getType() != TokenTypes.OBJBLOCK) {
+                    body = body.getParent();
+                }
+                if (!field || body == null || scope(declarationDetailAST) != body.getParent()) {
+                    continue;
+                }
             }
-            int depth = enclosingDepth(usageDetailAST, scope(declarationDetailAST));
+            int depth = enclosingDepth(usageDetailAST, visibleScope(declarationDetailAST, usageDetailAST));
             boolean beforeUse = declarationDetailAST.getLineNo() < usageDetailAST.getLineNo()
                     || declarationDetailAST.getLineNo() == usageDetailAST.getLineNo() && declarationDetailAST.getColumnNo() < usageDetailAST.getColumnNo();
             if (depth > selectedDepth && (field || beforeUse)) {

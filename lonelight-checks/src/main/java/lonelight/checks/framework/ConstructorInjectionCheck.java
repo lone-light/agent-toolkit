@@ -72,7 +72,7 @@ public final class ConstructorInjectionCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST rootDetailAST) {
-        javaSource = new JavaSource(rootDetailAST);
+        javaSource = indexSource(rootDetailAST);
     }
 
     /**
@@ -134,7 +134,7 @@ public final class ConstructorInjectionCheck extends RuleCheck {
      */
     private void collectAssignedFields(DetailAST constructorDetailAST, Map<String, DetailAST> fields, Set<DetailAST> injected) {
         var parameters = JavaSource.children(constructorDetailAST.findFirstToken(TokenTypes.PARAMETERS)).stream()
-                .filter(parameter -> parameter.getType() == TokenTypes.PARAMETER_DEF).toList();
+                .filter(FrameworkMethods::isValueParameter).toList();
         Set<String> names = parameters.stream().map(JavaSource::declarationName).map(DetailAST::getText)
                 .collect(Collectors.toSet());
         Set<String> beanParameters = parameters.stream().filter(parameter -> !javaSource.hasKnownAnnotation(parameter, CONFIG_VALUE))

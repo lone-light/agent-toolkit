@@ -1,9 +1,15 @@
 package lonelight.checks;
 
+import com.puppycrawl.tools.checkstyle.JavaParser;
+import com.puppycrawl.tools.checkstyle.TreeWalkerAuditEvent;
+import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
 import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -17,6 +23,19 @@ public final class JavaSource {
     private static final int UNICODE_ESCAPE_DIGITS = 4;
     private static final int HEX_RADIX = 16;
     private static final Pattern HEX_DIGITS = Pattern.compile("[0-9a-fA-F]+");
+
+    /**
+     * 用于复用过滤事件索引的编译单元
+     */
+    private final DetailAST root;
+    /**
+     * 用于查找同包声明的当前源码路径
+     */
+    private final Path sourceFile;
+    /**
+     * 同包同名源码是否声明对应顶层类型
+     */
+    private final Map<String, Boolean> packageTypes = new HashMap<>();
 
     /**
      * 显式导入的类型短名与全限定名
@@ -54,6 +73,18 @@ public final class JavaSource {
      * @param root 源码语法树根节点
      */
     public JavaSource(DetailAST root) {
+        this(root, null);
+    }
+
+    /**
+     * 为有文件路径的源码建立索引，以识别同包类型对按需导入的遮蔽
+     *
+     * @param root       源码语法树根节点
+     * @param sourceFile 当前源码路径，未知时为 null
+     */
+    public JavaSource(DetailAST root, Path sourceFile) {
+        this.root = root;
+        this.sourceFile = sourceFile;
         for (DetailAST node = root; node != null; node = node.getNextSibling()) {
             readDeclaredTypes(node);
             readHeader(node);
@@ -63,6 +94,18 @@ public final class JavaSource {
                 }
             }
         }
+    }
+
+    /**
+     * 为同一语法树上的过滤事件复用名称索引
+     *
+     * @param event    待过滤的扫描事件
+     * @param previous 上次事件的索引，首次使用时为 null
+     * @return 当前文件的名称索引
+     */
+    public static JavaSource forEvent(TreeWalkerAuditEvent event, JavaSource previous) {
+        return previous != null && previous.root == event.rootAst()
+                ? previous : new JavaSource(event.rootAst(), Path.of(event.fileName()));
     }
 
     /**
@@ -199,7 +242,7 @@ public final class JavaSource {
     }
 
     /**
-     * 识别 record 组件和未显式标记为 static 的字段
+     * 识别 record 组件和实例字段
      *
      * @param declarationDetailAST 待检查的声明节点
      * @return 属于规则检查的字段或组件时为 true
@@ -208,6 +251,8 @@ public final class JavaSource {
         return declarationDetailAST.getType() == TokenTypes.RECORD_COMPONENT_DEF
                 || declarationDetailAST.getType() == TokenTypes.VARIABLE_DEF
                 && declarationDetailAST.getParent().getType() == TokenTypes.OBJBLOCK
+                && declarationDetailAST.getParent().getParent().getType() != TokenTypes.INTERFACE_DEF
+                && declarationDetailAST.getParent().getParent().getType() != TokenTypes.ANNOTATION_DEF
                 && !isExplicitlyStatic(declarationDetailAST);
     }
 
@@ -223,10 +268,29 @@ public final class JavaSource {
         }
         for (DetailAST child = type.getFirstChild(); child != null; child = child.getNextSibling()) {
             if (child.getType() == TokenTypes.IDENT || child.getType() == TokenTypes.DOT) {
-                return FullIdent.createFullIdent(child).getText();
+                return qualifiedTypeName(child);
             }
         }
         return "";
+    }
+
+    /**
+     * 读取类型路径上的标识符，忽略每段携带的类型注解和泛型实参
+     *
+     * @param node 类型名称的标识符或点号节点
+     * @return 源码中写出的类型名
+     */
+    public static String qualifiedTypeName(DetailAST node) {
+        if (node.getType() == TokenTypes.IDENT) {
+            return node.getText();
+        }
+        StringJoiner name = new StringJoiner(".");
+        for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child.getType() == TokenTypes.IDENT || child.getType() == TokenTypes.DOT) {
+                name.add(qualifiedTypeName(child));
+            }
+        }
+        return name.toString();
     }
 
     /**
@@ -308,33 +372,67 @@ public final class JavaSource {
     }
 
     /**
+     * 获取表达式的第一个操作数
+     *
+     * @param expression 包含操作数的语法节点
+     * @return 跳过左括号后的节点，无操作数时为 null
+     */
+    public static DetailAST firstOperand(DetailAST expression) {
+        DetailAST operand = expression.getFirstChild();
+        while (operand != null && operand.getType() == TokenTypes.LPAREN) {
+            operand = operand.getNextSibling();
+        }
+        return operand;
+    }
+
+    /**
+     * 获取表达式的最后一个操作数
+     *
+     * @param expression 包含操作数的语法节点
+     * @return 跳过右括号后的节点，无操作数时为 null
+     */
+    public static DetailAST lastOperand(DetailAST expression) {
+        DetailAST operand = expression.getLastChild();
+        while (operand != null && operand.getType() == TokenTypes.RPAREN) {
+            operand = operand.getPreviousSibling();
+        }
+        return operand;
+    }
+
+    /**
      * 读取字符串字面量表达式并解码转义
      *
      * @param expression 待读取的表达式节点
      * @return 读出的文本，无法静态读取时为 null
-     * @throws IllegalArgumentException 转义无法解码时
      */
     public static String literalText(DetailAST expression) {
         if (expression == null) {
             return null;
         }
         if (expression.getType() == TokenTypes.EXPR) {
-            return literalText(expression.getFirstChild());
+            return literalText(firstOperand(expression));
         }
         if (expression.getType() == TokenTypes.PLUS) {
-            String left = literalText(expression.getFirstChild());
-            String right = literalText(expression.getLastChild());
+            String left = literalText(firstOperand(expression));
+            String right = literalText(lastOperand(expression));
             return left == null || right == null ? null : left + right;
         }
+        String decoded;
         if (expression.getType() == TokenTypes.TEXT_BLOCK_LITERAL_BEGIN) {
             DetailAST content = expression.findFirstToken(TokenTypes.TEXT_BLOCK_CONTENT);
-            return content == null ? "" : decodeUnicode(content.getText()).stripIndent().translateEscapes();
-        }
-        if (expression.getType() != TokenTypes.STRING_LITERAL) {
+            decoded = content == null ? "" : decodeUnicode(content.getText()).stripIndent();
+        } else if (expression.getType() == TokenTypes.STRING_LITERAL) {
+            String text = expression.getText();
+            decoded = decodeUnicode(text.substring(1, text.length() - 1));
+        } else {
             return null;
         }
-        String text = expression.getText();
-        return decodeUnicode(text.substring(1, text.length() - 1)).translateEscapes();
+        try {
+            return decoded.translateEscapes();
+        } catch (IllegalArgumentException ignored) {
+            // Checkstyle 可保留 javac 拒绝的转义，源码值此时不可判定
+            return null;
+        }
     }
 
     /**
@@ -346,11 +444,14 @@ public final class JavaSource {
     private static String decodeUnicode(String text) {
         StringBuilder result = new StringBuilder();
         int backslashes = 0;
+        boolean previousUnicodeEscape = false;
         int index = 0;
         while (index < text.length()) {
             char character = text.charAt(index);
             int nextIndex = index + 1;
-            int digits = character == '\\' && backslashes % 2 == 0 ? unicodeDigitsStart(text, nextIndex) : -1;
+            int digits = character == '\\' && (previousUnicodeEscape || backslashes % 2 == 0)
+                    ? unicodeDigitsStart(text, nextIndex) : -1;
+            previousUnicodeEscape = digits >= 0;
             if (digits >= 0) {
                 nextIndex = digits + UNICODE_ESCAPE_DIGITS;
                 character = (char) Integer.parseInt(text, digits, nextIndex, HEX_RADIX);
@@ -451,6 +552,42 @@ public final class JavaSource {
     }
 
     /**
+     * 检查当前源码的顶层类型声明
+     *
+     * @param simple 要查找的类型短名
+     * @return 当前文件声明了此顶层类型时为 true
+     */
+    private boolean declaresTopLevelType(String simple) {
+        return declaredTypes.getOrDefault(simple, List.of()).stream()
+                .anyMatch(type -> type.getParent() == null || type.getParent().getType() == TokenTypes.COMPILATION_UNIT);
+    }
+
+    /**
+     * 查找可遮蔽按需导入的同包类型
+     *
+     * @param simple 类型短名
+     * @return 同目录同名源码声明该顶层类型时为 true
+     */
+    private boolean hasPackageType(String simple) {
+        if (sourceFile == null) {
+            return false;
+        }
+        return packageTypes.computeIfAbsent(simple, name -> {
+            Path file = sourceFile.resolveSibling(name + ".java");
+            if (Files.isRegularFile(file)) {
+                try {
+                    var tree = JavaParser.parseFile(file.toFile(), JavaParser.Options.WITHOUT_COMMENTS);
+                    var sibling = new JavaSource(tree);
+                    return sibling.packageName.equals(packageName) && sibling.declaresTopLevelType(name);
+                } catch (IOException | CheckstyleException ignored) {
+                    // 源码不可读或无法解析时不能确认存在同包类型
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
      * 判断类型能否安全地使用短名
      *
      * @param canonical 全限定类型名
@@ -512,6 +649,40 @@ public final class JavaSource {
     }
 
     /**
+     * 按当前位置的声明、显式导入和按需导入匹配免查类型
+     *
+     * @param declaration         使用类型的声明
+     * @param written             源码类型名
+     * @param canonical           配置的类型全名
+     * @return 源码支持该类型，且未发现优先级更高的同名类型时为 true
+     */
+    public boolean matchesTypeExemption(DetailAST declaration, String written, String canonical) {
+        if (!simpleName(written).equals(simpleName(canonical))) {
+            return false;
+        }
+        int dot = written.indexOf('.');
+        String first = dot < 0 ? written : written.substring(0, dot);
+        String tail = written.substring(first.length());
+        DetailAST visible = visibleType(declaration, first);
+        if (visible != null) {
+            return canonical.equals(declaredTypeName(visible) + tail);
+        }
+        String imported = imports.get(first);
+        if (imported != null) {
+            return canonical.equals(imported + tail);
+        }
+        String local = packageName.isEmpty() ? written : packageName + "." + written;
+        if (local.equals(canonical) || dot >= 0 && written.equals(canonical)) {
+            return true;
+        }
+        if (!canonical.endsWith("." + written)) {
+            return false;
+        }
+        String owner = canonical.substring(0, canonical.length() - written.length() - 1);
+        return (owner.equals("java.lang") || wildcardImports.contains(owner)) && !hasPackageType(first);
+    }
+
+    /**
      * 检查声明是否带有指定注解
      *
      * @param declaration 待检查的声明节点
@@ -555,7 +726,7 @@ public final class JavaSource {
      * @return 源码中的注解匹配已知类型时为 true
      */
     public boolean isKnownAnnotationType(DetailAST annotation, String canonical) {
-        return isKnownAnnotationType(annotation, canonical, ignored -> false);
+        return isKnownAnnotationType(annotation, canonical, this::hasPackageType);
     }
 
     /**
@@ -667,10 +838,7 @@ public final class JavaSource {
         }
         if ((node.getType() == TokenTypes.IDENT || node.getType() == TokenTypes.DOT)
                 && node.getParent().getType() != TokenTypes.DOT) {
-            String written = node.getType() == TokenTypes.IDENT
-                    ? node.getText() : FullIdent.createFullIdent(node).getText();
-            int array = written.indexOf('[');
-            String canonical = resolve(array < 0 ? written : written.substring(0, array));
+            String canonical = resolve(qualifiedTypeName(node));
             if (pattern.matcher(canonical).matches()) {
                 return new TypeReference(node, canonical);
             }

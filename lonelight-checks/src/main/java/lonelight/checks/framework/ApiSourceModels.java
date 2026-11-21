@@ -3,7 +3,6 @@ package lonelight.checks.framework;
 import com.puppycrawl.tools.checkstyle.JavaParser;
 import com.puppycrawl.tools.checkstyle.api.CheckstyleException;
 import com.puppycrawl.tools.checkstyle.api.DetailAST;
-import com.puppycrawl.tools.checkstyle.api.FullIdent;
 import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 import lonelight.checks.JavaSource;
 
@@ -30,9 +29,9 @@ final class ApiSourceModels {
     private final Path sourceRoot;
 
     /**
-     * 当前源码文件声明的模型
+     * 按引用所在编译单元索引同文件声明的类型
      */
-    private final Map<String, Model> currentModels;
+    private final Map<JavaSource, Map<String, Model>> compilationUnits = new IdentityHashMap<>();
 
     /**
      * 为当前文件建立接口模型索引
@@ -43,8 +42,7 @@ final class ApiSourceModels {
      */
     ApiSourceModels(Path file, DetailAST root, JavaSource source) {
         sourceRoot = sourceRoot(file, source.packageName());
-        currentModels = declarations(root, source);
-        files.put(file, currentModels);
+        files.put(file, declarations(root, source));
     }
 
     /**
@@ -83,11 +81,11 @@ final class ApiSourceModels {
      * @param file 候选源码文件路径
      * @return 解析到的模型，文件不可读或无法解析时为空
      */
-    private static Map<String, Model> read(Path file) {
+    private Map<String, Model> read(Path file) {
         if (Files.isRegularFile(file)) {
             try {
                 DetailAST root = JavaParser.parseFile(file.toFile(), JavaParser.Options.WITHOUT_COMMENTS);
-                return declarations(root, new JavaSource(root));
+                return declarations(root, new JavaSource(root, file));
             } catch (IOException | CheckstyleException ignored) {
                 // 源码不可读或无法解析时跳过该文件
             }
@@ -124,7 +122,7 @@ final class ApiSourceModels {
      * @param source 当前文件的名称索引
      * @return 按全限定名索引的模型声明
      */
-    private static Map<String, Model> declarations(DetailAST root, JavaSource source) {
+    private Map<String, Model> declarations(DetailAST root, JavaSource source) {
         Map<String, Model> result = new LinkedHashMap<>();
         for (DetailAST node = root; node != null; node = node.getNextSibling()) {
             if (node.getType() == TokenTypes.COMPILATION_UNIT) {
@@ -133,6 +131,7 @@ final class ApiSourceModels {
                 addDeclaration(node, source, result);
             }
         }
+        compilationUnits.put(source, result);
         return result;
     }
 
@@ -198,9 +197,7 @@ final class ApiSourceModels {
             return;
         }
         if (node.getType() == TokenTypes.DOT) {
-            String name = FullIdent.createFullIdent(node).getText();
-            int bracket = name.indexOf('[');
-            consumer.accept(bracket < 0 ? name : name.substring(0, bracket));
+            consumer.accept(JavaSource.qualifiedTypeName(node));
             for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
                 if (child.getType() != TokenTypes.IDENT) {
                     typeArguments(child, consumer);
@@ -243,19 +240,19 @@ final class ApiSourceModels {
         for (DetailAST owner = JavaSource.enclosingType(context); owner != null;
              owner = JavaSource.enclosingType(owner)) {
             String ownerName = qualifiedName(source.packageName(), owner);
-            Model nested = findCanonical(ownerName + "." + written);
+            Model nested = findCanonical(ownerName + "." + written, source);
             if (nested != null) {
                 return nested;
             }
         }
         List<String> candidates = source.sourceTypeNames(written);
-        Model primary = findCanonical(candidates.getFirst());
+        Model primary = findCanonical(candidates.getFirst(), source);
         if (primary != null) {
             return primary;
         }
         Model match = null;
         for (String candidate : candidates.subList(1, candidates.size())) {
-            Model model = findCanonical(candidate);
+            Model model = findCanonical(candidate, source);
             if (model != null) {
                 if (match != null && match != model) {
                     return null;
@@ -290,18 +287,19 @@ final class ApiSourceModels {
     /**
      * 按全限定名查找当前文件或同一源码根下的模型
      *
-     * @param name 模型的全限定名
+     * @param name   模型的全限定名
+     * @param source 引用所在文件的名称索引
      * @return 查找到的模型，缺失时为 null
      */
-    Model findCanonical(String name) {
-        Model current = currentModels.get(name);
+    Model findCanonical(String name, JavaSource source) {
+        Model current = compilationUnits.get(source).get(name);
         if (current != null || sourceRoot == null) {
             return current;
         }
         String prefix = name;
         while (!prefix.isEmpty()) {
             Path file = sourceRoot.resolve(prefix.replace('.', '/') + ".java");
-            Model model = files.computeIfAbsent(file, ApiSourceModels::read).get(name);
+            Model model = files.computeIfAbsent(file, this::read).get(name);
             if (model != null) {
                 return model;
             }

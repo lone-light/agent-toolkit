@@ -29,6 +29,8 @@
 | 过滤和正例 | [SuppressionCases](src/main/java/base/SuppressionCases.java)、[OrderSummary](src/main/java/base/OrderSummary.java) | 注解豁免、成对注释豁免、框架字段和两份配置均通过的代码 |
 | 类型后缀 | [UserProfile](src/main/java/optional/UserProfile.java) | `UserProfile` 缺少后缀，`AddressDTO` 和 `AddressRequest` 通过 |
 
+[NamingCases.sameShape](src/main/java/project/NamingCases.java) 在限定类型上使用类型注解，并声明显式接收者。命名检查只提示形参 `other`。
+
 生成目录排除和测试源码豁免见 [FiltersTest](../src/test/java/lonelight/checks/configuration/FiltersTest.java)。
 
 ## 接口注解对照

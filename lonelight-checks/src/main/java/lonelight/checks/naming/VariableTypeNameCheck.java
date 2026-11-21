@@ -90,11 +90,12 @@ public final class VariableTypeNameCheck extends RuleCheck {
     /**
      * 监听需要检查类型命名的变量声明
      *
-     * @return 变量、参数和 record 组件的节点类别
+     * @return 显式变量声明的节点类别
      */
     @Override
     public int[] getDefaultTokens() {
-        return new int[]{TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF};
+        return new int[]{TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF,
+                TokenTypes.RESOURCE, TokenTypes.PATTERN_VARIABLE_DEF};
     }
 
     /**
@@ -104,31 +105,33 @@ public final class VariableTypeNameCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST root) {
-        source = new JavaSource(root);
+        source = indexSource(root);
     }
 
     /**
      * 检查显式类型变量的名称是否与类型匹配
      *
-     * @param node 待检查的变量、参数或 record 组件
+     * @param node 待检查的变量声明
      */
     @Override
     public void visitToken(DetailAST node) {
-        if (JavaSource.isExplicitlyStatic(node)) {
+        var identifier = node.findFirstToken(TokenTypes.IDENT);
+        if (identifier == null || identifier.getText().equals("_")
+                || node.getParent().getType() == TokenTypes.OBJBLOCK && !JavaSource.isInstanceFieldOrComponent(node)) {
             return;
         }
         DetailAST type = node.findFirstToken(TokenTypes.TYPE);
-        if (type == null || type.findFirstToken(TokenTypes.ARRAY_DECLARATOR) != null) {
+        if (type == null || type.findFirstToken(TokenTypes.ARRAY_DECLARATOR) != null
+                || node.findFirstToken(TokenTypes.ELLIPSIS) != null) {
             return;
         }
         String written = JavaSource.typeName(type);
         if (written.isEmpty() || written.equals("var") || isTypeParameter(node, written)) {
             return;
         }
-        if (ignoredTypes.stream().anyMatch(name -> source.isType(written, name))) {
+        if (ignoredTypes.stream().anyMatch(name -> source.matchesTypeExemption(node, written, name))) {
             return;
         }
-        var identifier = JavaSource.declarationName(node);
         String name = identifier.getText();
         String simple = JavaSource.simpleName(written);
         String expected = Introspector.decapitalize(simple);
@@ -143,7 +146,7 @@ public final class VariableTypeNameCheck extends RuleCheck {
         }
         boolean alias = aliases.stream().anyMatch(entry -> {
             String[] parts = entry.split("=", 2);
-            return source.isType(written, parts[0]) && name.equals(parts[1]);
+            return source.matchesTypeExemption(node, written, parts[0]) && name.equals(parts[1]);
         });
         if (!name.equals(expected) && !alias
                 && !(allowPrefixes && name.matches("[a-z][a-zA-Z0-9]*" + java.util.regex.Pattern.quote(simple)))) {

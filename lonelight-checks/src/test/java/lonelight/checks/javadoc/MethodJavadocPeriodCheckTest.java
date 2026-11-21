@@ -73,4 +73,29 @@ class MethodJavadocPeriodCheckTest extends CustomCheckTest {
         var events = CheckTestSupport.scan(CheckTestSupport.isolate(rule, true), filePath);
         assertEquals(List.of(3, 7), events.stream().map(AuditEvent::getLine).toList());
     }
+
+    /**
+     * 验证代码片段和 HTML 标记均不会掩盖后续正文或产生额外诊断
+     */
+    @Test
+    void scan_snippetAndHtml_checksVisibleProseOnly() throws Exception {
+        String source = """
+                class Example {
+                    /**
+                     * {@snippet lang="java" :
+                     * // Syntax.
+                     * 1. get()
+                     * }
+                     * {@code 示例.} <b>2. 正文。</b>
+                     */
+                    void run() {}
+                }
+                """;
+        var file = CheckTestSupport.write(directoryPath, "Example.java", source);
+        for (Class<?> type : List.of(MethodJavadocPeriodCheck.class, MethodJavadocNumberingCheck.class)) {
+            var configuration = CheckTestSupport.isolate(CheckTestSupport.rule(type.getName()), true);
+            var events = CheckTestSupport.scan(configuration, file);
+            assertEquals(List.of(7), events.stream().map(AuditEvent::getLine).toList());
+        }
+    }
 }

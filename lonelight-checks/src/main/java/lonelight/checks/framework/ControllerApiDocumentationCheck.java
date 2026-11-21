@@ -171,7 +171,7 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
             return;
         }
         if (source == null) {
-            source = new JavaSource(root);
+            source = indexSource(root);
         }
         if (!FrameworkMethods.isRestEndpoint(source, method) || isHiddenEndpoint(method, source)) {
             return;
@@ -192,7 +192,7 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
         DetailAST parameters = method.findFirstToken(TokenTypes.PARAMETERS);
         for (DetailAST parameter = parameters == null ? null : parameters.getFirstChild();
              parameter != null; parameter = parameter.getNextSibling()) {
-            if (parameter.getType() == TokenTypes.PARAMETER_DEF) {
+            if (FrameworkMethods.isValueParameter(parameter)) {
                 checkParameter(method, operation, parameter, parameterDocs, visited);
             }
         }
@@ -293,13 +293,8 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
         if (type == null) {
             return false;
         }
-        DetailAST base = type;
-        for (var array = type.findFirstToken(TokenTypes.ARRAY_DECLARATOR); array != null;
-             array = array.findFirstToken(TokenTypes.ARRAY_DECLARATOR)) {
-            base = array;
-        }
-        String name = JavaSource.typeName(base);
-        if (isScalar(name, parameter) || PRIMITIVES.contains(base.getFirstChild().getText())) {
+        String name = JavaSource.typeName(type);
+        if (isScalar(name, parameter) || PRIMITIVES.contains(type.getFirstChild().getText())) {
             return true;
         }
         if (SCALAR_CONTAINERS.stream().noneMatch(key -> source.isKnownType(name, key))) {

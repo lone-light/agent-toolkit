@@ -34,7 +34,7 @@ public final class TestMethodNameCheck extends RuleCheck {
      */
     @Override
     public void beginTree(DetailAST root) {
-        source = new JavaSource(root);
+        source = indexSource(root);
     }
 
     /**

@@ -19,6 +19,9 @@
     </module>
     <!-- 运行可独立选择的项目约定 -->
     <module name="TreeWalker">
+        <!-- 单个文件解析失败时保留错误并继续扫描后续文件 -->
+        <property name="skipFileOnJavaParseException" value="true"/>
+        <property name="javaParseExceptionSeverity" value="error"/>
         <!-- 提示需提取为常量的数字字面量 -->
         <module name="MagicNumber">
             <property name="severity" value="warning"/>
@@ -192,9 +195,9 @@
         <module name="SuppressWarningsHolder"/>
         <!-- 允许成对标记对局部范围豁免检查 -->
         <module name="SuppressionCommentFilter">
-            <property name="offCommentFormat" value="CHECKSTYLE.OFF: ([\w|]+)"/>
-            <property name="onCommentFormat" value="CHECKSTYLE.ON: ([\w|]+)"/>
-            <property name="checkFormat" value="$1"/>
+            <property name="offCommentFormat" value="\bCHECKSTYLE\.OFF: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="onCommentFormat" value="\bCHECKSTYLE\.ON: (\w+(?:\|\w+)*)(?=\s|\*/|$)"/>
+            <property name="checkFormat" value="(?:^|\.)(?:$1)(?:Check)?$"/>
         </module>
     </module>
 </module>

@@ -32,12 +32,14 @@ class FiltersTest {
                     enum Multiline {ON,
                         OFF}
                     void run() {run();}
+                    enum Trailing {ON, OFF;}
+                    enum WithField {ON, OFF; int count;}
                 }
                 """);
         var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         var lines = events.stream()
                 .filter(event -> CheckTestSupport.matches(event, "WhitespaceAround")).map(AuditEvent::getLine).toList();
-        assertEquals(List.of(4, 5, 6, 7, 7), lines);
+        assertEquals(List.of(4, 5, 6, 7, 7, 9, 9), lines);
         assertTrue(events.stream().noneMatch(event -> CheckTestSupport.matches(event, "LeftCurly")
                 && (event.getLine() == 3 || event.getLine() == 4)));
     }
@@ -98,6 +100,65 @@ class FiltersTest {
                 """);
         var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
         assertEquals(1, events.stream().filter(event -> CheckTestSupport.matches(event, "NeedBraces")).count());
+    }
+
+    /**
+     * 规则名称和标识须完整匹配，拼错的标记保留诊断
+     */
+    @Test
+    void suppress_similarNamesAndMalformedMarkers_keepsViolations() throws Exception {
+        Path filePath = CheckTestSupport.write(directoryPath, "Example.java", """
+                class Example {
+                    // CHECKSTYLE.OFF: Method
+                    void UpperOne() {}
+                    // CHECKSTYLE.ON: Method
+                    // CHECKSTYLE.OFF: productionMethod
+                    void UpperTwo() {}
+                    // CHECKSTYLE.ON: productionMethod
+                    // CHECKSTYLE-OFF: MethodName
+                    void UpperThree() {}
+                    // CHECKSTYLE-ON: MethodName
+                    // CHECKSTYLE.OFF: MethodName|
+                    void UpperFour() {}
+                    // CHECKSTYLE.ON: MethodName|
+                    // CHECKSTYLE.OFF: MethodNameCheck|NeedBraces
+                    void UpperFive() { if (true) UpperOne(); }
+                    // CHECKSTYLE.ON: MethodNameCheck|NeedBraces
+                    // CHECKSTYLE.OFF: productionMethodName
+                    void UpperSix() {}
+                    // CHECKSTYLE.ON: productionMethodName
+                    void UpperSeven() { if (true) UpperOne(); }
+                }
+                """);
+        var events = CheckTestSupport.scan(CheckTestSupport.load("lonelight-base"), filePath);
+        assertEquals(List.of(3, 6, 9, 12, 20), events.stream()
+                .filter(event -> CheckTestSupport.matches(event, "MethodName")).map(AuditEvent::getLine).toList());
+        assertEquals(List.of(20), events.stream()
+                .filter(event -> CheckTestSupport.matches(event, "NeedBraces")).map(AuditEvent::getLine).toList());
+    }
+
+    /**
+     * 源码解析失败时报告错误，同批次的后续源码仍按规则检查
+     */
+    @Test
+    void scan_unparseableFile_reportsErrorAndChecksNextFile() throws Exception {
+        Path brokenPath = CheckTestSupport.write(directoryPath, "Broken.java", "class Broken {");
+        Path validPath = CheckTestSupport.write(directoryPath, "Example.java", """
+                public class Example {
+                    void run(int count) { if (count > 42) run(count); }
+                }
+                """);
+        for (String profile : List.of("lonelight-base", "lonelight-project")) {
+            var events = CheckTestSupport.scan(CheckTestSupport.load(profile), List.of(brokenPath, validPath),
+                    getClass().getClassLoader());
+            var failures = events.stream().filter(event -> event.getFileName().equals(brokenPath.toString())
+                    && event.getSourceName().endsWith(".TreeWalker")).toList();
+            assertEquals(1, failures.size(), profile);
+            assertEquals("error", failures.getFirst().getSeverityLevel().getName());
+            String expectedRule = profile.equals("lonelight-base") ? "NeedBraces" : "MagicNumber";
+            assertTrue(events.stream().anyMatch(event -> event.getFileName().equals(validPath.toString())
+                    && CheckTestSupport.matches(event, expectedRule)), profile);
+        }
     }
 
     /**

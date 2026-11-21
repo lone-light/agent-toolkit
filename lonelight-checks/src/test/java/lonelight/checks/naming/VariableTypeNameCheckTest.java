@@ -1,5 +1,6 @@
 package lonelight.checks.naming;
 
+import lonelight.checks.CheckTestSupport;
 import lonelight.checks.CustomCheckTest;
 import org.junit.jupiter.api.Test;
 
@@ -74,4 +75,115 @@ class VariableTypeNameCheckTest extends CustomCheckTest {
         verify(VariableTypeNameCheck.class, "class Example<InputT> { InputT value; <ResultT> void run(ResultT output) {} }", 0);
         verify(VariableTypeNameCheck.class, "class Example { T value; }", 1);
     }
+
+    /**
+     * 验证限定类型的注解、注解参数和泛型不参与类型名匹配
+     */
+    @Test
+    void scan_annotatedQualifiedTypes_matchesOnlyTypeSegments() throws Exception {
+        String source = """
+                import java.lang.annotation.*;
+                @Target(ElementType.TYPE_USE) @interface Mark { Class<?> value() default Void.class; }
+                class Outer<T> { class Middle<U> { class Inner {} } }
+                class Example {
+                    Outer<@Mark String>.@Mark(Integer.class) Middle<Boolean>.@Mark Inner inner;
+                    java.util.Map.@Mark Entry<String, Integer> entry;
+                    java.util.Map.@Mark Entry<String, Integer> row;
+                }
+                """;
+        verify(VariableTypeNameCheck.class, source, 1);
+        verify(VariableTypeNameCheck.class, source, 0, "aliases", "java.util.Map.Entry=row");
+    }
+
+    /**
+     * 验证接收者参数、可变参数、隐式静态字段和未命名变量无需按类型命名
+     */
+    @Test
+    void scan_declarationsWithoutInstanceNames_skipsOnlyExemptBindings() throws Exception {
+        verify(VariableTypeNameCheck.class, """
+                class Example {
+                    class Inner { Inner(Example Example.this) {} }
+                    interface Constants { Example DEFAULT = null; }
+                    @interface Config { Example DEFAULT = null; }
+                    record Group(Example... entries) {}
+                    void read(Example this, Example... entries) {
+                        Example _ = null;
+                        Example wrong;
+                    }
+                }
+                """, 1);
+    }
+
+    /**
+     * 验证资源声明和具名模式变量触发检查，已有资源引用和未命名模式跳过
+     */
+    @Test
+    void scan_resourceAndPatternBindings_checksExplicitNames() throws Exception {
+        verify(VariableTypeNameCheck.class, """
+                class Example {
+                    void read(AutoCloseable autoCloseable, Object object) throws Exception {
+                        try (autoCloseable; AutoCloseable second = null) {}
+                        if (object instanceof String bad) {}
+                        if (object instanceof String string) {}
+                        if (object instanceof String _) {}
+                    }
+                }
+                """, 2);
+    }
+
+    /**
+     * 验证通配导入的类型豁免只用于当前位置可见的类型
+     */
+    @Test
+    void scan_wildcardExemptions_respectsLexicalTypeAndExplicitImports() throws Exception {
+        String ignoredType = "java.util.List";
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.*;
+                import other.*;
+                class Example {
+                    List<String> names;
+                    class Local { class List {} List wrong; }
+                }
+                """, 1, "ignoredTypes", ignoredType);
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.*;
+                import other.List;
+                class Example { List wrong; }
+                """, 1, "ignoredTypes", ignoredType);
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.List;
+                class Example { class Local { class List {} List wrong; } }
+                """, 1, "ignoredTypes", ignoredType);
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.*;
+                class Example { Method wrong; OtherType value; }
+                """, 2, "ignoredTypes", "java.lang.reflect.Method,DefaultPackageType");
+    }
+
+    /**
+     * 验证同包源码中的类型先于通配导入，显式导入优先于同包其他文件
+     */
+    @Test
+    void scan_siblingAndTypeParameter_respectsJavaTypeScope() throws Exception {
+        CheckTestSupport.write(directoryPath, "List.java", "package demo; class List {}");
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.*;
+                class Example<ListParam> {
+                    List wrong;
+                    ListParam any;
+                    <List> void use(List any) {}
+                }
+                """, 1, "ignoredTypes", "java.util.List");
+        verify(VariableTypeNameCheck.class, """
+                package demo;
+                import java.util.List;
+                class Example { List<String> names; }
+                """, 0, "ignoredTypes", "java.util.List");
+    }
+
 }

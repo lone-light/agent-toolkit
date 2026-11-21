@@ -15,6 +15,11 @@ import lonelight.checks.JavaSource;
  */
 public final class FrameworkMethodFilter extends AbstractAutomaticBean implements TreeWalkerFilter {
     /**
+     * 当前文件的类型与注解索引
+     */
+    private JavaSource source;
+
+    /**
      * 判断两个节点限定的范围是否包含诊断位置
      *
      * @param event 待定位的扫描事件
@@ -33,26 +38,14 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
      * 判断框架方法是否适用当前规则的豁免
      *
      * @param method  待判断的方法声明
-     * @param root    当前文件的语法树根节点
      * @param naming  当前诊断是否来自方法命名检查
      * @param missing 当前诊断是否来自缺少 Javadoc 检查
      * @return 可以豁免时为 true
      */
-    private static boolean exempt(DetailAST method, DetailAST root, boolean naming, boolean missing) {
-        JavaSource source = new JavaSource(root);
+    private boolean exempt(DetailAST method, boolean naming, boolean missing) {
         return FrameworkMethods.isJUnitTest(source, method)
-                || !naming && source.hasAnnotation(method, "java.lang.Override")
+                || !naming && source.hasKnownAnnotation(method, "java.lang.Override")
                 || missing && FrameworkMethods.hasHttpMapping(source, method);
-    }
-
-    /**
-     * 沿最末分支定位语法树末端
-     *
-     * @param node 子树根节点
-     * @return 最末分支的叶子节点
-     */
-    private static DetailAST lastToken(DetailAST node) {
-        return node.getLastChild() == null ? node : lastToken(node.getLastChild());
     }
 
     /**
@@ -78,14 +71,14 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
         if (!naming && !missing && !documentation) {
             return true;
         }
-        DetailAST target = null;
         for (DetailAST method : JavaSource.descendants(event.rootAst(), TokenTypes.METHOD_DEF)) {
             DetailAST comment = naming ? null : JavadocUtil.getAttachedJavadocComment(method);
-            if (contains(event, comment == null ? method : comment, lastToken(method))) {
-                // 先访问外层方法，因此后匹配的局部类方法优先
-                target = method;
+            // 最后一个直接子节点指向方法体的左花括号或抽象方法的分号
+            if (contains(event, comment == null ? method : comment, method.getLastChild())) {
+                source = JavaSource.forEvent(event, source);
+                return !exempt(method, naming, missing);
             }
         }
-        return target == null || !exempt(target, event.rootAst(), naming, missing);
+        return true;
     }
 }

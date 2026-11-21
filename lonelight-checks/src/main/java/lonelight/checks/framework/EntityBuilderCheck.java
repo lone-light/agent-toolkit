@@ -71,8 +71,8 @@ public final class EntityBuilderCheck extends RuleCheck {
      */
     private static boolean hasLombokBuilder(DetailAST nodeDetailAST, JavaSource javaSource) {
         for (var annotation : JavaSource.annotations(nodeDetailAST)) {
-            String name = JavaSource.annotationName(annotation);
-            if (javaSource.isKnownType(name, "lombok.Builder") || javaSource.isKnownType(name, "lombok.experimental.SuperBuilder")) {
+            if (javaSource.isKnownAnnotationType(annotation, "lombok.Builder")
+                    || javaSource.isKnownAnnotationType(annotation, "lombok.experimental.SuperBuilder")) {
                 var access = JavaSource.attribute(annotation, "access");
                 var methodName = JavaSource.attribute(annotation, "builderMethodName");
                 var accessValue = access == null ? null : access.getFirstChild();
@@ -119,7 +119,7 @@ public final class EntityBuilderCheck extends RuleCheck {
     @Override
     public void beginTree(DetailAST rootDetailAST) {
         this.rootDetailAST = rootDetailAST;
-        javaSource = new JavaSource(rootDetailAST);
+        javaSource = indexSource(rootDetailAST);
         apiSourceModels = null;
     }
 

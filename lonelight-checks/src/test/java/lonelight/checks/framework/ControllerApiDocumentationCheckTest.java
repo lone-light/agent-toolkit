@@ -169,7 +169,7 @@ class ControllerApiDocumentationCheckTest {
                     void valid(@PathVariable("id") int userId, @RequestHeader(name = "x-trace") String traceId,
                                @RequestParam @Parameter(hidden = true) String skip) {}
                     @GetMapping @ResponseBody @Hidden void hidden(@RequestParam String skip) {}
-                    @GetMapping @ResponseBody @Operation(hidden = true) void hiddenOperation(@RequestParam String skip) {}
+                    @GetMapping @ResponseBody @Operation(hidden = (true)) void hiddenOperation(@RequestParam String skip) {}
                     @GetMapping String view(@RequestParam String skip) { return "index"; }
                 }
                 """);
@@ -412,5 +412,43 @@ class ControllerApiDocumentationCheckTest {
      */
     private static long count(List<AuditEvent> events, String text) {
         return messages(events).stream().filter(message -> message.contains(text)).count();
+    }
+
+    /**
+     * 验证接收者不参与 HTTP 绑定，标量数组仍需说明
+     */
+    @Test
+    void scan_receiverAndArrayParameters_checksOnlyBoundParameters() throws Exception {
+        Path file = write("Search.java", """
+                package app.web;
+                import io.swagger.v3.oas.annotations.Operation;
+                import org.springframework.web.bind.annotation.*;
+                @RestController class Search {
+                    @GetMapping @Operation(summary = "搜索")
+                    void search(Search this, String[] words, int[] pages) {}
+                }
+                """);
+        var events = projectEvents(file);
+        assertEquals(2, count(events, "@Parameter"));
+        assertEquals(2, events.size());
+    }
+
+    /**
+     * 验证通过带类型注解的限定名定位嵌套响应模型
+     */
+    @Test
+    void scan_annotatedMemberType_checksResponseFields() throws Exception {
+        Path file = write("Search.java", """
+                package app.web;
+                import io.swagger.v3.oas.annotations.Operation;
+                import org.springframework.web.bind.annotation.*;
+                @java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE) @interface Mark {}
+                class Payload { record Entry(String note) {} }
+                @RestController class Search {
+                    @GetMapping @Operation(summary = "搜索")
+                    java.util.List<Payload.@Mark Entry> search() { return null; }
+                }
+                """);
+        assertEquals(1, count(projectEvents(file), "app.web.Payload.Entry 的字段 note"));
     }
 }
