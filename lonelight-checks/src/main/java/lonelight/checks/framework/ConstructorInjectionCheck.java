@@ -29,6 +29,33 @@ public final class ConstructorInjectionCheck extends RuleCheck {
     private JavaSource javaSource;
 
     /**
+     * 识别对当前对象字段的直接赋值目标
+     *
+     * @param nodeDetailAST  赋值左侧节点
+     * @param shadowingNames 当前作用域中的参数和局部变量
+     * @return 可确认的字段名，无法确认时为空字符串
+     */
+    private static String fieldName(DetailAST nodeDetailAST, Set<String> shadowingNames) {
+        if (nodeDetailAST.getType() == TokenTypes.DOT && nodeDetailAST.getFirstChild().getType() == TokenTypes.LITERAL_THIS
+                && nodeDetailAST.getLastChild().getType() == TokenTypes.IDENT) {
+            return nodeDetailAST.getLastChild().getText();
+        }
+        return nodeDetailAST.getType() == TokenTypes.IDENT && !shadowingNames.contains(nodeDetailAST.getText()) ? nodeDetailAST.getText() : "";
+    }
+
+    /**
+     * 判断是否声明指定字段修饰符
+     *
+     * @param fieldDetailAST 待检查的字段
+     * @param token          目标修饰符节点类别
+     * @return 修饰符直接存在时为 true
+     */
+    private static boolean hasModifier(DetailAST fieldDetailAST, int token) {
+        var modifiers = fieldDetailAST.findFirstToken(TokenTypes.MODIFIERS);
+        return modifiers != null && modifiers.findFirstToken(token) != null;
+    }
+
+    /**
      * 监听可能包含注入成员的类
      *
      * @return 类声明节点类别
@@ -130,21 +157,6 @@ public final class ConstructorInjectionCheck extends RuleCheck {
     }
 
     /**
-     * 识别对当前对象字段的直接赋值目标
-     *
-     * @param nodeDetailAST  赋值左侧节点
-     * @param shadowingNames 当前作用域中的参数和局部变量
-     * @return 可确认的字段名，无法确认时为空字符串
-     */
-    private static String fieldName(DetailAST nodeDetailAST, Set<String> shadowingNames) {
-        if (nodeDetailAST.getType() == TokenTypes.DOT && nodeDetailAST.getFirstChild().getType() == TokenTypes.LITERAL_THIS
-                && nodeDetailAST.getLastChild().getType() == TokenTypes.IDENT) {
-            return nodeDetailAST.getLastChild().getText();
-        }
-        return nodeDetailAST.getType() == TokenTypes.IDENT && !shadowingNames.contains(nodeDetailAST.getText()) ? nodeDetailAST.getText() : "";
-    }
-
-    /**
      * 判断是否标有 Spring 或标准依赖注入注解
      *
      * @param nodeDetailAST 待检查的声明
@@ -152,17 +164,5 @@ public final class ConstructorInjectionCheck extends RuleCheck {
      */
     private boolean usesInject(DetailAST nodeDetailAST) {
         return INJECT.stream().anyMatch(annotation -> javaSource.hasKnownAnnotation(nodeDetailAST, annotation));
-    }
-
-    /**
-     * 判断是否声明指定字段修饰符
-     *
-     * @param fieldDetailAST 待检查的字段
-     * @param token          目标修饰符节点类别
-     * @return 修饰符直接存在时为 true
-     */
-    private static boolean hasModifier(DetailAST fieldDetailAST, int token) {
-        var modifiers = fieldDetailAST.findFirstToken(TokenTypes.MODIFIERS);
-        return modifiers != null && modifiers.findFirstToken(token) != null;
     }
 }

@@ -48,63 +48,6 @@ final class ApiSourceModels {
     }
 
     /**
-     * 按当前声明的上下文查找模型源码
-     *
-     * @param written 源码中的类型名
-     * @param source  引用所在文件的名称索引
-     * @param context 类型引用所在的声明
-     * @return 解析到的模型，缺失或有歧义时为 null
-     */
-    Model find(String written, JavaSource source, DetailAST context) {
-        if (written.indexOf('.') < 0) {
-            for (DetailAST owner = JavaSource.enclosingType(context); owner != null; owner = JavaSource.enclosingType(owner)) {
-                String ownerName = qualifiedName(source.packageName(), owner);
-                Model nested = findCanonical(ownerName + "." + written);
-                if (nested != null) {
-                    return nested;
-                }
-            }
-        }
-        List<String> candidates = source.sourceTypeNames(written);
-        Model primary = findCanonical(candidates.getFirst());
-        if (primary != null) {
-            return primary;
-        }
-        Model match = null;
-        for (String candidate : candidates.subList(1, candidates.size())) {
-            Model model = findCanonical(candidate);
-            if (model != null) {
-                if (match != null && match != model) {
-                    return null;
-                }
-                match = model;
-            }
-        }
-        return match;
-    }
-
-    /**
-     * 解析类型表达式中的模型及泛型实参
-     *
-     * @param typeDetailAST    类型表达式节点
-     * @param javaSource       声明所在文件的名称索引
-     * @param contextDetailAST 类型引用所在的声明
-     * @return 按引用顺序排列的模型
-     */
-    Set<Model> referenced(DetailAST typeDetailAST, JavaSource javaSource, DetailAST contextDetailAST) {
-        Set<Model> result = new LinkedHashSet<>();
-        typeNames(typeDetailAST, name -> {
-            if (!isTypeParameter(contextDetailAST, name)) {
-                Model model = find(name, javaSource, contextDetailAST);
-                if (model != null) {
-                    result.add(model);
-                }
-            }
-        });
-        return result;
-    }
-
-    /**
      * 判断类型名是否引用当前或外层声明的泛型参数
      *
      * @param contextDetailAST 类型引用所在的声明
@@ -132,30 +75,6 @@ final class ApiSourceModels {
         var body = typeDetailAST.findFirstToken(typeDetailAST.getType() == TokenTypes.RECORD_DEF
                 ? TokenTypes.RECORD_COMPONENTS : TokenTypes.OBJBLOCK);
         return JavaSource.children(body);
-    }
-
-    /**
-     * 按全限定名查找当前文件或同一源码根下的模型
-     *
-     * @param name 模型的全限定名
-     * @return 查找到的模型，缺失时为 null
-     */
-    private Model findCanonical(String name) {
-        Model current = currentModels.get(name);
-        if (current != null || sourceRoot == null) {
-            return current;
-        }
-        String prefix = name;
-        while (!prefix.isEmpty()) {
-            Path file = sourceRoot.resolve(prefix.replace('.', '/') + ".java");
-            Model model = files.computeIfAbsent(file, ApiSourceModels::read).get(name);
-            if (model != null) {
-                return model;
-            }
-            int dot = prefix.lastIndexOf('.');
-            prefix = dot < 0 ? "" : prefix.substring(0, dot);
-        }
-        return null;
     }
 
     /**
@@ -310,6 +229,87 @@ final class ApiSourceModels {
                 typeArguments(child, consumer);
             }
         }
+    }
+
+    /**
+     * 按当前声明的上下文查找模型源码
+     *
+     * @param written 源码中的类型名
+     * @param source  引用所在文件的名称索引
+     * @param context 类型引用所在的声明
+     * @return 解析到的模型，缺失或有歧义时为 null
+     */
+    Model find(String written, JavaSource source, DetailAST context) {
+        if (written.indexOf('.') < 0) {
+            for (DetailAST owner = JavaSource.enclosingType(context); owner != null; owner = JavaSource.enclosingType(owner)) {
+                String ownerName = qualifiedName(source.packageName(), owner);
+                Model nested = findCanonical(ownerName + "." + written);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+        }
+        List<String> candidates = source.sourceTypeNames(written);
+        Model primary = findCanonical(candidates.getFirst());
+        if (primary != null) {
+            return primary;
+        }
+        Model match = null;
+        for (String candidate : candidates.subList(1, candidates.size())) {
+            Model model = findCanonical(candidate);
+            if (model != null) {
+                if (match != null && match != model) {
+                    return null;
+                }
+                match = model;
+            }
+        }
+        return match;
+    }
+
+    /**
+     * 解析类型表达式中的模型及泛型实参
+     *
+     * @param typeDetailAST    类型表达式节点
+     * @param javaSource       声明所在文件的名称索引
+     * @param contextDetailAST 类型引用所在的声明
+     * @return 按引用顺序排列的模型
+     */
+    Set<Model> referenced(DetailAST typeDetailAST, JavaSource javaSource, DetailAST contextDetailAST) {
+        Set<Model> result = new LinkedHashSet<>();
+        typeNames(typeDetailAST, name -> {
+            if (!isTypeParameter(contextDetailAST, name)) {
+                Model model = find(name, javaSource, contextDetailAST);
+                if (model != null) {
+                    result.add(model);
+                }
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 按全限定名查找当前文件或同一源码根下的模型
+     *
+     * @param name 模型的全限定名
+     * @return 查找到的模型，缺失时为 null
+     */
+    private Model findCanonical(String name) {
+        Model current = currentModels.get(name);
+        if (current != null || sourceRoot == null) {
+            return current;
+        }
+        String prefix = name;
+        while (!prefix.isEmpty()) {
+            Path file = sourceRoot.resolve(prefix.replace('.', '/') + ".java");
+            Model model = files.computeIfAbsent(file, ApiSourceModels::read).get(name);
+            if (model != null) {
+                return model;
+            }
+            int dot = prefix.lastIndexOf('.');
+            prefix = dot < 0 ? "" : prefix.substring(0, dot);
+        }
+        return null;
     }
 
     /**

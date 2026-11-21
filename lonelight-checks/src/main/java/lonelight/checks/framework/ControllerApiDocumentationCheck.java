@@ -51,6 +51,81 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
     private DetailAST root;
 
     /**
+     * 读取绑定名称并在省略时采用参数名
+     *
+     * @param binding  参数绑定注解，可为空
+     * @param fallback 默认参数名
+     * @return 绑定名称，无法静态解析时为 null
+     */
+    private static String boundName(DetailAST binding, String fallback) {
+        if (binding != null) {
+            for (String key : List.of("name", "value")) {
+                DetailAST value = JavaSource.attribute(binding, key);
+                if (value != null) {
+                    String literal = JavaSource.literalText(value);
+                    if (literal == null || !literal.isEmpty()) {
+                        return literal;
+                    }
+                }
+            }
+        }
+        return fallback;
+    }
+
+    /**
+     * 读取注解属性中写出的枚举常量名
+     *
+     * @param annotation 待检查的注解，可为空
+     * @param key        属性名
+     * @return 常量的短名，属性缺失时为 null
+     */
+    private static String enumConstant(DetailAST annotation, String key) {
+        DetailAST expression = annotation == null ? null : JavaSource.attribute(annotation, key);
+        if (expression == null) {
+            return null;
+        }
+        DetailAST value = expression.getFirstChild();
+        return value.getType() == TokenTypes.DOT ? value.getLastChild().getText() : value.getText();
+    }
+
+    /**
+     * 检查注解是否提供说明或引用
+     *
+     * @param annotation 待检查的注解，可为空
+     * @return 说明或引用属性有效时为 true
+     */
+    private static boolean description(DetailAST annotation) {
+        return text(annotation, DESCRIPTION_ATTRIBUTE) || text(annotation, "ref");
+    }
+
+    /**
+     * 检查注解属性是否存在且未明确为空白
+     *
+     * @param annotation 待检查的注解，可为空
+     * @param key        文本属性名
+     * @return 属性无法静态判空或包含非空白文本时为 true
+     */
+    private static boolean text(DetailAST annotation, String key) {
+        DetailAST value = annotation == null ? null : JavaSource.attribute(annotation, key);
+        String literal = JavaSource.literalText(value);
+        return value != null && (literal == null || !literal.isBlank());
+    }
+
+    /**
+     * 筛选注解属性中指定类型的嵌套注解
+     *
+     * @param annotation 外层注解，可为空
+     * @param source     注解所在文件的名称索引
+     * @param attribute  属性名
+     * @param type       注解类型的全限定名
+     * @return 匹配的嵌套注解
+     */
+    private static List<DetailAST> nested(DetailAST annotation, JavaSource source, String attribute, String type) {
+        return annotation == null ? List.of() : JavaSource.annotationValues(annotation, attribute).stream()
+                .filter(node -> source.isKnownAnnotationType(node, type)).toList();
+    }
+
+    /**
      * 监听可能声明 REST 接口的方法
      *
      * @return 方法声明节点类别
@@ -208,28 +283,6 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
     }
 
     /**
-     * 读取绑定名称并在省略时采用参数名
-     *
-     * @param binding  参数绑定注解，可为空
-     * @param fallback 默认参数名
-     * @return 绑定名称，无法静态解析时为 null
-     */
-    private static String boundName(DetailAST binding, String fallback) {
-        if (binding != null) {
-            for (String key : List.of("name", "value")) {
-                DetailAST value = JavaSource.attribute(binding, key);
-                if (value != null) {
-                    String literal = JavaSource.literalText(value);
-                    if (literal == null || !literal.isEmpty()) {
-                        return literal;
-                    }
-                }
-            }
-        }
-        return fallback;
-    }
-
-    /**
      * 识别未显式绑定的简单请求参数
      *
      * @param parameter 待检查的参数声明
@@ -348,59 +401,6 @@ public final class ControllerApiDocumentationCheck extends RuleCheck {
             }
         }
         checkModels(field, target, declaringSource, visited, direction);
-    }
-
-    /**
-     * 读取注解属性中写出的枚举常量名
-     *
-     * @param annotation 待检查的注解，可为空
-     * @param key        属性名
-     * @return 常量的短名，属性缺失时为 null
-     */
-    private static String enumConstant(DetailAST annotation, String key) {
-        DetailAST expression = annotation == null ? null : JavaSource.attribute(annotation, key);
-        if (expression == null) {
-            return null;
-        }
-        DetailAST value = expression.getFirstChild();
-        return value.getType() == TokenTypes.DOT ? value.getLastChild().getText() : value.getText();
-    }
-
-    /**
-     * 检查注解是否提供说明或引用
-     *
-     * @param annotation 待检查的注解，可为空
-     * @return 说明或引用属性有效时为 true
-     */
-    private static boolean description(DetailAST annotation) {
-        return text(annotation, DESCRIPTION_ATTRIBUTE) || text(annotation, "ref");
-    }
-
-    /**
-     * 检查注解属性是否存在且未明确为空白
-     *
-     * @param annotation 待检查的注解，可为空
-     * @param key        文本属性名
-     * @return 属性无法静态判空或包含非空白文本时为 true
-     */
-    private static boolean text(DetailAST annotation, String key) {
-        DetailAST value = annotation == null ? null : JavaSource.attribute(annotation, key);
-        String literal = JavaSource.literalText(value);
-        return value != null && (literal == null || !literal.isBlank());
-    }
-
-    /**
-     * 筛选注解属性中指定类型的嵌套注解
-     *
-     * @param annotation 外层注解，可为空
-     * @param source     注解所在文件的名称索引
-     * @param attribute  属性名
-     * @param type       注解类型的全限定名
-     * @return 匹配的嵌套注解
-     */
-    private static List<DetailAST> nested(DetailAST annotation, JavaSource source, String attribute, String type) {
-        return annotation == null ? List.of() : JavaSource.annotationValues(annotation, attribute).stream()
-                .filter(node -> source.isKnownAnnotationType(node, type)).toList();
     }
 
     /**

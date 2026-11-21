@@ -65,223 +65,6 @@ public final class JavaSource {
     }
 
     /**
-     * 收集声明的类型名和泛型参数名
-     *
-     * @param node 当前语法树节点
-     */
-    private void readDeclaredTypes(DetailAST node) {
-        switch (node.getType()) {
-            case TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF,
-                 TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF -> declaredTypes
-                    .computeIfAbsent(declarationName(node).getText(), ignored -> new ArrayList<>()).add(node);
-            case TokenTypes.TYPE_PARAMETER -> typeParameterNames.add(declarationName(node).getText());
-            default -> {
-                // 其余节点只继续检查子节点
-            }
-        }
-        for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
-            readDeclaredTypes(child);
-        }
-    }
-
-    /**
-     * 记录包名及普通、静态和通配导入
-     *
-     * @param node 待识别的文件头节点
-     */
-    private void readHeader(DetailAST node) {
-        if (node.getType() == TokenTypes.IMPORT) {
-            String name = FullIdent.createFullIdentBelow(node).getText();
-            if (name.endsWith(".*")) {
-                wildcardImports.add(name.substring(0, name.length() - 2));
-            } else {
-                imports.put(simpleName(name), name);
-            }
-        } else if (node.getType() == TokenTypes.STATIC_IMPORT) {
-            var qualifier = node.findFirstToken(TokenTypes.DOT);
-            staticImports.add(FullIdent.createFullIdent(qualifier).getText());
-        } else if (node.getType() == TokenTypes.PACKAGE_DEF) {
-            var qualifier = node.findFirstToken(TokenTypes.DOT);
-            var name = qualifier == null ? node.findFirstToken(TokenTypes.IDENT) : qualifier;
-            packageName = FullIdent.createFullIdent(name).getText();
-        }
-    }
-
-    /**
-     * 根据显式导入和当前包名解析类型名称
-     *
-     * @param written 源码中的类型名
-     * @return 解析后的类型名
-     */
-    public String resolve(String written) {
-        int dot = written.indexOf('.');
-        String first = dot < 0 ? written : written.substring(0, dot);
-        String imported = imports.get(first);
-        if (imported != null) {
-            return imported + written.substring(first.length());
-        }
-        if (dot >= 0) {
-            return written;
-        }
-        return packageName.isEmpty() ? written : packageName + "." + written;
-    }
-
-    /**
-     * 取得源码声明的包名
-     *
-     * @return 包名，未声明时为空字符串
-     */
-    public String packageName() {
-        return packageName;
-    }
-
-    /**
-     * 判断类型能否安全地使用短名
-     *
-     * @param canonical 全限定类型名
-     * @return 未发现同名冲突或导入歧义时为 true
-     */
-    public boolean canShortenQualifiedName(String canonical) {
-        String simple = simpleName(canonical);
-        if (declaredTypes.containsKey(simple) || typeParameterNames.contains(simple)
-                || staticImports.stream().map(JavaSource::simpleName).anyMatch(name -> name.equals(simple) || name.equals("*"))) {
-            return false;
-        }
-        String imported = imports.get(simple);
-        if (imported != null) {
-            return imported.equals(canonical);
-        }
-        String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
-        return wildcardImports.isEmpty() || wildcardImports.size() == 1 && wildcardImports.contains(qualifier);
-    }
-
-    /**
-     * 生成定位类型源码的候选全名
-     *
-     * @param written 源码中的类型名
-     * @return 按查找顺序排列的候选名称
-     */
-    public List<String> sourceTypeNames(String written) {
-        String resolved = resolve(written);
-        String first = written.split("\\.", 2)[0];
-        if (imports.containsKey(first)) {
-            return List.of(resolved);
-        }
-        String local = packageName.isEmpty() ? written : packageName + "." + written;
-        if (written.indexOf('.') >= 0 && resolved.equals(written)) {
-            return local.equals(written) ? List.of(written) : List.of(written, local);
-        }
-        List<String> names = new ArrayList<>();
-        names.add(local);
-        if (!declaredTypes.containsKey(first)) {
-            wildcardImports.stream().sorted().map(owner -> owner + "." + written).forEach(names::add);
-        }
-        return names;
-    }
-
-    /**
-     * 按包名和导入判断类型是否匹配
-     *
-     * @param written   源码中的类型名
-     * @param canonical 预期的全限定类型名
-     * @return 可以确定匹配时为 true
-     */
-    public boolean isType(String written, String canonical) {
-        return resolve(written).equals(canonical)
-                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
-                && canonical.startsWith("java.lang.") && written.equals(simpleName(canonical)))
-                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
-                && wildcardImports.size() == 1
-                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')))
-                && written.equals(simpleName(canonical)));
-    }
-
-    /**
-     * 检查声明是否带有指定注解
-     *
-     * @param declaration 待检查的声明节点
-     * @param canonical   注解的全限定名
-     * @return 存在匹配注解时为 true
-     */
-    public boolean hasAnnotation(DetailAST declaration, String canonical) {
-        return annotations(declaration).stream().anyMatch(annotation -> isType(annotationName(annotation), canonical));
-    }
-
-    /**
-     * 允许通过通配导入匹配已知类型
-     *
-     * @param written   源码中的类型名
-     * @param canonical 预期的全限定类型名
-     * @return 可以匹配时为 true
-     */
-    public boolean isKnownType(String written, String canonical) {
-        return isType(written, canonical)
-                || !written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
-                && written.equals(simpleName(canonical))
-                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')));
-    }
-
-    /**
-     * 检查声明是否带有可识别的已知注解
-     *
-     * @param declaration 待检查的声明节点
-     * @param canonical   注解的全限定名
-     * @return 存在匹配注解时为 true
-     */
-    public boolean hasKnownAnnotation(DetailAST declaration, String canonical) {
-        return annotations(declaration).stream().anyMatch(annotation -> isKnownAnnotationType(annotation, canonical));
-    }
-
-    /**
-     * 按可见的同名声明和导入识别已知注解
-     *
-     * @param annotation 注解节点
-     * @param canonical  注解的全限定名
-     * @return 源码中的注解匹配已知类型时为 true
-     */
-    public boolean isKnownAnnotationType(DetailAST annotation, String canonical) {
-        String written = annotationName(annotation);
-        if (written.contains(".")) {
-            return resolve(written).equals(canonical);
-        }
-        if (!written.equals(simpleName(canonical))) {
-            return false;
-        }
-        var visible = visibleType(annotation, written);
-        if (visible != null) {
-            return canonical.equals(declaredTypeName(visible));
-        }
-        String imported = imports.get(written);
-        if (imported != null) {
-            return imported.equals(canonical);
-        }
-        String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
-        return qualifier.equals(packageName) || qualifier.equals("java.lang") || wildcardImports.contains(qualifier);
-    }
-
-    /**
-     * 查找当前注解位置可见的同名类型
-     *
-     * @param annotation 注解节点
-     * @param simple     要查找的类型短名
-     * @return 最近的同名类型声明，找不到时为 null
-     */
-    private DetailAST visibleType(DetailAST annotation, String simple) {
-        var candidates = declaredTypes.get(simple);
-        if (candidates == null) {
-            return null;
-        }
-        for (DetailAST scope = annotation.getParent(); scope != null; scope = scope.getParent()) {
-            for (DetailAST candidate : candidates) {
-                if (isDeclaredInScope(candidate, scope, annotation)) {
-                    return candidate;
-                }
-            }
-        }
-        return candidates.stream().filter(candidate -> candidate.getParent() == null).findFirst().orElse(null);
-    }
-
-    /**
      * 判断同一语法块的类型声明是否已进入作用域
      *
      * @param candidate  候选类型声明
@@ -296,53 +79,6 @@ public final class JavaSource {
         return scope.getType() != TokenTypes.SLIST || candidate.getLineNo() < annotation.getLineNo()
                 || candidate.getLineNo() == annotation.getLineNo()
                 && candidate.getColumnNo() <= annotation.getColumnNo();
-    }
-
-    /**
-     * 找出顶层或成员注解的全限定名
-     *
-     * @param declaration 可见的同名类型声明
-     * @return 注解的全限定名，其他类型或局部声明返回空字符串
-     */
-    private String declaredTypeName(DetailAST declaration) {
-        if (declaration.getType() != TokenTypes.ANNOTATION_DEF) {
-            return "";
-        }
-        Deque<String> names = new ArrayDeque<>();
-        names.addFirst(declarationName(declaration).getText());
-        DetailAST scope = declaration.getParent();
-        while (scope != null && scope.getType() == TokenTypes.OBJBLOCK) {
-            var owner = scope.getParent();
-            var identifier = owner.findFirstToken(TokenTypes.IDENT);
-            if (identifier == null) {
-                return "";
-            }
-            names.addFirst(identifier.getText());
-            scope = owner.getParent();
-        }
-        if (scope != null && scope.getType() != TokenTypes.COMPILATION_UNIT) {
-            return "";
-        }
-        if (!packageName.isEmpty()) {
-            names.addFirst(packageName);
-        }
-        return String.join(".", names);
-    }
-
-    /**
-     * 判断未限定的静态成员名能否从导入定位到目标类
-     *
-     * @param owner  目标类全限定名
-     * @param member 静态成员短名
-     * @return 显式导入或无其他通配导入的目标成员时为 true
-     */
-    public boolean hasStaticImport(String owner, String member) {
-        var explicit = staticImports.stream().filter(imported -> simpleName(imported).equals(member)).toList();
-        if (!explicit.isEmpty()) {
-            return explicit.size() == 1 && explicit.getFirst().equals(owner + "." + member);
-        }
-        return staticImports.contains(owner + ".*")
-                && staticImports.stream().filter(imported -> imported.endsWith(".*")).count() == 1;
     }
 
     /**
@@ -571,46 +307,6 @@ public final class JavaSource {
     }
 
     /**
-     * 保存匹配类型的节点和全限定名
-     *
-     * @param token         匹配到的类型语法树节点
-     * @param canonicalName 解析后的完整类型名称
-     * @author lonelight
-     */
-    public record TypeReference(DetailAST token, String canonicalName) {
-    }
-
-    /**
-     * 查找类型子树中首个匹配正则的类型
-     *
-     * @param node    待查找的子树根节点
-     * @param pattern 匹配全限定类型名的正则表达式
-     * @return 首个匹配的类型引用，找不到时为 null
-     */
-    public TypeReference firstMatchingType(DetailAST node, Pattern pattern) {
-        if (node.getType() == TokenTypes.ANNOTATION) {
-            return null;
-        }
-        if ((node.getType() == TokenTypes.IDENT || node.getType() == TokenTypes.DOT)
-                && node.getParent().getType() != TokenTypes.DOT) {
-            String written = node.getType() == TokenTypes.IDENT
-                    ? node.getText() : FullIdent.createFullIdent(node).getText();
-            int array = written.indexOf('[');
-            String canonical = resolve(array < 0 ? written : written.substring(0, array));
-            if (pattern.matcher(canonical).matches()) {
-                return new TypeReference(node, canonical);
-            }
-        }
-        for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
-            TypeReference match = firstMatchingType(child, pattern);
-            if (match != null) {
-                return match;
-            }
-        }
-        return null;
-    }
-
-    /**
      * 读取字符串字面量表达式并解码转义
      *
      * @param expression 待读取的表达式节点
@@ -680,5 +376,309 @@ public final class JavaSource {
         int end = digits + UNICODE_ESCAPE_DIGITS;
         return digits > start && end <= text.length() && HEX_DIGITS.matcher(text).region(digits, end).matches()
                 ? digits : -1;
+    }
+
+    /**
+     * 收集声明的类型名和泛型参数名
+     *
+     * @param node 当前语法树节点
+     */
+    private void readDeclaredTypes(DetailAST node) {
+        switch (node.getType()) {
+            case TokenTypes.CLASS_DEF, TokenTypes.INTERFACE_DEF, TokenTypes.RECORD_DEF,
+                 TokenTypes.ENUM_DEF, TokenTypes.ANNOTATION_DEF -> declaredTypes
+                    .computeIfAbsent(declarationName(node).getText(), ignored -> new ArrayList<>()).add(node);
+            case TokenTypes.TYPE_PARAMETER -> typeParameterNames.add(declarationName(node).getText());
+            default -> {
+                // 其余节点只继续检查子节点
+            }
+        }
+        for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            readDeclaredTypes(child);
+        }
+    }
+
+    /**
+     * 记录包名及普通、静态和通配导入
+     *
+     * @param node 待识别的文件头节点
+     */
+    private void readHeader(DetailAST node) {
+        if (node.getType() == TokenTypes.IMPORT) {
+            String name = FullIdent.createFullIdentBelow(node).getText();
+            if (name.endsWith(".*")) {
+                wildcardImports.add(name.substring(0, name.length() - 2));
+            } else {
+                imports.put(simpleName(name), name);
+            }
+        } else if (node.getType() == TokenTypes.STATIC_IMPORT) {
+            var qualifier = node.findFirstToken(TokenTypes.DOT);
+            staticImports.add(FullIdent.createFullIdent(qualifier).getText());
+        } else if (node.getType() == TokenTypes.PACKAGE_DEF) {
+            var qualifier = node.findFirstToken(TokenTypes.DOT);
+            var name = qualifier == null ? node.findFirstToken(TokenTypes.IDENT) : qualifier;
+            packageName = FullIdent.createFullIdent(name).getText();
+        }
+    }
+
+    /**
+     * 根据显式导入和当前包名解析类型名称
+     *
+     * @param written 源码中的类型名
+     * @return 解析后的类型名
+     */
+    public String resolve(String written) {
+        int dot = written.indexOf('.');
+        String first = dot < 0 ? written : written.substring(0, dot);
+        String imported = imports.get(first);
+        if (imported != null) {
+            return imported + written.substring(first.length());
+        }
+        if (dot >= 0) {
+            return written;
+        }
+        return packageName.isEmpty() ? written : packageName + "." + written;
+    }
+
+    /**
+     * 取得源码声明的包名
+     *
+     * @return 包名，未声明时为空字符串
+     */
+    public String packageName() {
+        return packageName;
+    }
+
+    /**
+     * 判断类型能否安全地使用短名
+     *
+     * @param canonical 全限定类型名
+     * @return 未发现同名冲突或导入歧义时为 true
+     */
+    public boolean canShortenQualifiedName(String canonical) {
+        String simple = simpleName(canonical);
+        if (declaredTypes.containsKey(simple) || typeParameterNames.contains(simple)
+                || staticImports.stream().map(JavaSource::simpleName).anyMatch(name -> name.equals(simple) || name.equals("*"))) {
+            return false;
+        }
+        String imported = imports.get(simple);
+        if (imported != null) {
+            return imported.equals(canonical);
+        }
+        String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
+        return wildcardImports.isEmpty() || wildcardImports.size() == 1 && wildcardImports.contains(qualifier);
+    }
+
+    /**
+     * 生成定位类型源码的候选全名
+     *
+     * @param written 源码中的类型名
+     * @return 按查找顺序排列的候选名称
+     */
+    public List<String> sourceTypeNames(String written) {
+        String resolved = resolve(written);
+        String first = written.split("\\.", 2)[0];
+        if (imports.containsKey(first)) {
+            return List.of(resolved);
+        }
+        String local = packageName.isEmpty() ? written : packageName + "." + written;
+        if (written.indexOf('.') >= 0 && resolved.equals(written)) {
+            return local.equals(written) ? List.of(written) : List.of(written, local);
+        }
+        List<String> names = new ArrayList<>();
+        names.add(local);
+        if (!declaredTypes.containsKey(first)) {
+            wildcardImports.stream().sorted().map(owner -> owner + "." + written).forEach(names::add);
+        }
+        return names;
+    }
+
+    /**
+     * 按包名和导入判断类型是否匹配
+     *
+     * @param written   源码中的类型名
+     * @param canonical 预期的全限定类型名
+     * @return 可以确定匹配时为 true
+     */
+    public boolean isType(String written, String canonical) {
+        return resolve(written).equals(canonical)
+                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
+                && canonical.startsWith("java.lang.") && written.equals(simpleName(canonical)))
+                || (!written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
+                && wildcardImports.size() == 1
+                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')))
+                && written.equals(simpleName(canonical)));
+    }
+
+    /**
+     * 检查声明是否带有指定注解
+     *
+     * @param declaration 待检查的声明节点
+     * @param canonical   注解的全限定名
+     * @return 存在匹配注解时为 true
+     */
+    public boolean hasAnnotation(DetailAST declaration, String canonical) {
+        return annotations(declaration).stream().anyMatch(annotation -> isType(annotationName(annotation), canonical));
+    }
+
+    /**
+     * 允许通过通配导入匹配已知类型
+     *
+     * @param written   源码中的类型名
+     * @param canonical 预期的全限定类型名
+     * @return 可以匹配时为 true
+     */
+    public boolean isKnownType(String written, String canonical) {
+        return isType(written, canonical)
+                || !written.contains(".") && !imports.containsKey(written) && !declaredTypes.containsKey(written)
+                && written.equals(simpleName(canonical))
+                && wildcardImports.contains(canonical.substring(0, canonical.lastIndexOf('.')));
+    }
+
+    /**
+     * 检查声明是否带有可识别的已知注解
+     *
+     * @param declaration 待检查的声明节点
+     * @param canonical   注解的全限定名
+     * @return 存在匹配注解时为 true
+     */
+    public boolean hasKnownAnnotation(DetailAST declaration, String canonical) {
+        return annotations(declaration).stream().anyMatch(annotation -> isKnownAnnotationType(annotation, canonical));
+    }
+
+    /**
+     * 按可见的同名声明和导入识别已知注解
+     *
+     * @param annotation 注解节点
+     * @param canonical  注解的全限定名
+     * @return 源码中的注解匹配已知类型时为 true
+     */
+    public boolean isKnownAnnotationType(DetailAST annotation, String canonical) {
+        String written = annotationName(annotation);
+        if (written.contains(".")) {
+            return resolve(written).equals(canonical);
+        }
+        if (!written.equals(simpleName(canonical))) {
+            return false;
+        }
+        var visible = visibleType(annotation, written);
+        if (visible != null) {
+            return canonical.equals(declaredTypeName(visible));
+        }
+        String imported = imports.get(written);
+        if (imported != null) {
+            return imported.equals(canonical);
+        }
+        String qualifier = canonical.substring(0, canonical.lastIndexOf('.'));
+        return qualifier.equals(packageName) || qualifier.equals("java.lang") || wildcardImports.contains(qualifier);
+    }
+
+    /**
+     * 查找当前注解位置可见的同名类型
+     *
+     * @param annotation 注解节点
+     * @param simple     要查找的类型短名
+     * @return 最近的同名类型声明，找不到时为 null
+     */
+    private DetailAST visibleType(DetailAST annotation, String simple) {
+        var candidates = declaredTypes.get(simple);
+        if (candidates == null) {
+            return null;
+        }
+        for (DetailAST scope = annotation.getParent(); scope != null; scope = scope.getParent()) {
+            for (DetailAST candidate : candidates) {
+                if (isDeclaredInScope(candidate, scope, annotation)) {
+                    return candidate;
+                }
+            }
+        }
+        return candidates.stream().filter(candidate -> candidate.getParent() == null).findFirst().orElse(null);
+    }
+
+    /**
+     * 找出顶层或成员注解的全限定名
+     *
+     * @param declaration 可见的同名类型声明
+     * @return 注解的全限定名，其他类型或局部声明返回空字符串
+     */
+    private String declaredTypeName(DetailAST declaration) {
+        if (declaration.getType() != TokenTypes.ANNOTATION_DEF) {
+            return "";
+        }
+        Deque<String> names = new ArrayDeque<>();
+        names.addFirst(declarationName(declaration).getText());
+        DetailAST scope = declaration.getParent();
+        while (scope != null && scope.getType() == TokenTypes.OBJBLOCK) {
+            var owner = scope.getParent();
+            var identifier = owner.findFirstToken(TokenTypes.IDENT);
+            if (identifier == null) {
+                return "";
+            }
+            names.addFirst(identifier.getText());
+            scope = owner.getParent();
+        }
+        if (scope != null && scope.getType() != TokenTypes.COMPILATION_UNIT) {
+            return "";
+        }
+        if (!packageName.isEmpty()) {
+            names.addFirst(packageName);
+        }
+        return String.join(".", names);
+    }
+
+    /**
+     * 判断未限定的静态成员名能否从导入定位到目标类
+     *
+     * @param owner  目标类全限定名
+     * @param member 静态成员短名
+     * @return 显式导入或无其他通配导入的目标成员时为 true
+     */
+    public boolean hasStaticImport(String owner, String member) {
+        var explicit = staticImports.stream().filter(imported -> simpleName(imported).equals(member)).toList();
+        if (!explicit.isEmpty()) {
+            return explicit.size() == 1 && explicit.getFirst().equals(owner + "." + member);
+        }
+        return staticImports.contains(owner + ".*")
+                && staticImports.stream().filter(imported -> imported.endsWith(".*")).count() == 1;
+    }
+
+    /**
+     * 查找类型子树中首个匹配正则的类型
+     *
+     * @param node    待查找的子树根节点
+     * @param pattern 匹配全限定类型名的正则表达式
+     * @return 首个匹配的类型引用，找不到时为 null
+     */
+    public TypeReference firstMatchingType(DetailAST node, Pattern pattern) {
+        if (node.getType() == TokenTypes.ANNOTATION) {
+            return null;
+        }
+        if ((node.getType() == TokenTypes.IDENT || node.getType() == TokenTypes.DOT)
+                && node.getParent().getType() != TokenTypes.DOT) {
+            String written = node.getType() == TokenTypes.IDENT
+                    ? node.getText() : FullIdent.createFullIdent(node).getText();
+            int array = written.indexOf('[');
+            String canonical = resolve(array < 0 ? written : written.substring(0, array));
+            if (pattern.matcher(canonical).matches()) {
+                return new TypeReference(node, canonical);
+            }
+        }
+        for (DetailAST child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
+            TypeReference match = firstMatchingType(child, pattern);
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 保存匹配类型的节点和全限定名
+     *
+     * @param token         匹配到的类型语法树节点
+     * @param canonicalName 解析后的完整类型名称
+     * @author lonelight
+     */
+    public record TypeReference(DetailAST token, String canonicalName) {
     }
 }

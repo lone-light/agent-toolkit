@@ -35,6 +35,24 @@ public final class VariableTypeNameCheck extends RuleCheck {
     private JavaSource source;
 
     /**
+     * 识别声明从外层作用域引用的泛型参数
+     *
+     * @param declaration 待检查的变量声明
+     * @param name        需要解析的类型名
+     * @return 匹配外层泛型参数时为 true
+     */
+    private static boolean isTypeParameter(DetailAST declaration, String name) {
+        for (DetailAST owner = declaration.getParent(); owner != null; owner = owner.getParent()) {
+            DetailAST parameters = owner.findFirstToken(TokenTypes.TYPE_PARAMETERS);
+            if (parameters != null && JavaSource.descendants(parameters, TokenTypes.TYPE_PARAMETER).stream()
+                    .anyMatch(parameter -> JavaSource.declarationName(parameter).getText().equals(name))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 供 Checkstyle 从 XML 配置跳过变量命名检查的类型
      *
      * @param values 免查类型的名称
@@ -131,23 +149,5 @@ public final class VariableTypeNameCheck extends RuleCheck {
                 && !(allowPrefixes && name.matches("[a-z][a-zA-Z0-9]*" + java.util.regex.Pattern.quote(simple)))) {
             log(identifier, "variable.type.name", expected);
         }
-    }
-
-    /**
-     * 识别声明从外层作用域引用的泛型参数
-     *
-     * @param declaration 待检查的变量声明
-     * @param name        需要解析的类型名
-     * @return 匹配外层泛型参数时为 true
-     */
-    private static boolean isTypeParameter(DetailAST declaration, String name) {
-        for (DetailAST owner = declaration.getParent(); owner != null; owner = owner.getParent()) {
-            DetailAST parameters = owner.findFirstToken(TokenTypes.TYPE_PARAMETERS);
-            if (parameters != null && JavaSource.descendants(parameters, TokenTypes.TYPE_PARAMETER).stream()
-                    .anyMatch(parameter -> JavaSource.declarationName(parameter).getText().equals(name))) {
-                return true;
-            }
-        }
-        return false;
     }
 }

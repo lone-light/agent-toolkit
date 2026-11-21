@@ -27,53 +27,6 @@ public final class EntityBuilderCheck extends RuleCheck {
     private ApiSourceModels apiSourceModels;
 
     /**
-     * 监听对象创建表达式
-     *
-     * @return 对象创建节点类别
-     */
-    @Override
-    public int[] getDefaultTokens() {
-        return new int[]{TokenTypes.LITERAL_NEW};
-    }
-
-    /**
-     * 重置当前源码文件的类型索引
-     *
-     * @param rootDetailAST 当前文件的语法树根节点
-     */
-    @Override
-    public void beginTree(DetailAST rootDetailAST) {
-        this.rootDetailAST = rootDetailAST;
-        javaSource = new JavaSource(rootDetailAST);
-        apiSourceModels = null;
-    }
-
-    /**
-     * 报告调用方直接 new 已公开构建器的实体
-     *
-     * @param creationDetailAST 待检查的对象创建节点
-     */
-    @Override
-    public void visitToken(DetailAST creationDetailAST) {
-        if (creationDetailAST.findFirstToken(TokenTypes.ELIST) == null
-                || creationDetailAST.findFirstToken(TokenTypes.OBJBLOCK) != null) {
-            return;
-        }
-        String name = JavaSource.typeName(creationDetailAST);
-        if (name.isEmpty()) {
-            return;
-        }
-        if (apiSourceModels == null) {
-            apiSourceModels = new ApiSourceModels(Path.of(getFilePath()).toAbsolutePath().normalize(), rootDetailAST, javaSource);
-        }
-        var model = apiSourceModels.find(name, javaSource, creationDetailAST);
-        if (model != null && PersistenceModels.isEntity(model) && hasBuilder(model)
-                && !(model.source() == javaSource && encloses(model.tree(), creationDetailAST))) {
-            log(creationDetailAST, "entity.builder", model.name());
-        }
-    }
-
-    /**
      * 判断实体是否公开标准 builder 方法或指定 Lombok 生成构建器
      *
      * @param model 待检查的持久化实体
@@ -146,5 +99,52 @@ public final class EntityBuilderCheck extends RuleCheck {
             }
         }
         return false;
+    }
+
+    /**
+     * 监听对象创建表达式
+     *
+     * @return 对象创建节点类别
+     */
+    @Override
+    public int[] getDefaultTokens() {
+        return new int[]{TokenTypes.LITERAL_NEW};
+    }
+
+    /**
+     * 重置当前源码文件的类型索引
+     *
+     * @param rootDetailAST 当前文件的语法树根节点
+     */
+    @Override
+    public void beginTree(DetailAST rootDetailAST) {
+        this.rootDetailAST = rootDetailAST;
+        javaSource = new JavaSource(rootDetailAST);
+        apiSourceModels = null;
+    }
+
+    /**
+     * 报告调用方直接 new 已公开构建器的实体
+     *
+     * @param creationDetailAST 待检查的对象创建节点
+     */
+    @Override
+    public void visitToken(DetailAST creationDetailAST) {
+        if (creationDetailAST.findFirstToken(TokenTypes.ELIST) == null
+                || creationDetailAST.findFirstToken(TokenTypes.OBJBLOCK) != null) {
+            return;
+        }
+        String name = JavaSource.typeName(creationDetailAST);
+        if (name.isEmpty()) {
+            return;
+        }
+        if (apiSourceModels == null) {
+            apiSourceModels = new ApiSourceModels(Path.of(getFilePath()).toAbsolutePath().normalize(), rootDetailAST, javaSource);
+        }
+        var model = apiSourceModels.find(name, javaSource, creationDetailAST);
+        if (model != null && PersistenceModels.isEntity(model) && hasBuilder(model)
+                && !(model.source() == javaSource && encloses(model.tree(), creationDetailAST))) {
+            log(creationDetailAST, "entity.builder", model.name());
+        }
     }
 }

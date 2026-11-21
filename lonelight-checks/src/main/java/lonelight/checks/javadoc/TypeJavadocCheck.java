@@ -17,6 +17,32 @@ import java.util.Set;
  */
 public final class TypeJavadocCheck extends RuleCheck {
     /**
+     * 收集正文可见文字所在的源码行
+     *
+     * @param detailNode Javadoc 节点，可为空
+     * @param lines      待更新的行号集合
+     */
+    private static void collectTextLines(DetailNode detailNode, Set<Integer> lines) {
+        if (detailNode == null) {
+            return;
+        }
+        int type = detailNode.getType();
+        if (type == JavadocCommentsTokenTypes.JAVADOC_INLINE_TAG
+                || type == JavadocCommentsTokenTypes.TEXT && !detailNode.getText().isBlank()) {
+            lines.add(detailNode.getLineNumber());
+            return;
+        }
+        if (type == JavadocCommentsTokenTypes.TEXT || type == JavadocCommentsTokenTypes.HTML_COMMENT
+                || type == JavadocCommentsTokenTypes.HTML_TAG_START || type == JavadocCommentsTokenTypes.HTML_TAG_END) {
+            return;
+        }
+        for (DetailNode childDetailNode = detailNode.getFirstChild(); childDetailNode != null;
+             childDetailNode = childDetailNode.getNextSibling()) {
+            collectTextLines(childDetailNode, lines);
+        }
+    }
+
+    /**
      * 监听可附加类型 Javadoc 的声明
      *
      * @return 类型声明节点类别
@@ -83,32 +109,6 @@ public final class TypeJavadocCheck extends RuleCheck {
             return lines.isEmpty();
         })) {
             log(name, "javadoc.type.author");
-        }
-    }
-
-    /**
-     * 收集正文可见文字所在的源码行
-     *
-     * @param detailNode Javadoc 节点，可为空
-     * @param lines      待更新的行号集合
-     */
-    private static void collectTextLines(DetailNode detailNode, Set<Integer> lines) {
-        if (detailNode == null) {
-            return;
-        }
-        int type = detailNode.getType();
-        if (type == JavadocCommentsTokenTypes.JAVADOC_INLINE_TAG
-                || type == JavadocCommentsTokenTypes.TEXT && !detailNode.getText().isBlank()) {
-            lines.add(detailNode.getLineNumber());
-            return;
-        }
-        if (type == JavadocCommentsTokenTypes.TEXT || type == JavadocCommentsTokenTypes.HTML_COMMENT
-                || type == JavadocCommentsTokenTypes.HTML_TAG_START || type == JavadocCommentsTokenTypes.HTML_TAG_END) {
-            return;
-        }
-        for (DetailNode childDetailNode = detailNode.getFirstChild(); childDetailNode != null;
-             childDetailNode = childDetailNode.getNextSibling()) {
-            collectTextLines(childDetailNode, lines);
         }
     }
 }

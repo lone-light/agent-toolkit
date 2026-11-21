@@ -28,6 +28,21 @@ public final class BigDecimalFloatingConstructorCheck extends RuleCheck {
     private JavaVariables javaVariables;
 
     /**
+     * 仅在两边均为已识别数值时应用二元数值提升
+     *
+     * @param leftNumberKind  左操作数类别
+     * @param rightNumberKind 右操作数类别
+     * @return 运算结果类别或无法判断
+     */
+    private static NumberKind numericPromotion(NumberKind leftNumberKind, NumberKind rightNumberKind) {
+        if (leftNumberKind == NumberKind.UNKNOWN || rightNumberKind == NumberKind.UNKNOWN) {
+            return NumberKind.UNKNOWN;
+        }
+        return leftNumberKind == NumberKind.FLOATING || rightNumberKind == NumberKind.FLOATING
+                ? NumberKind.FLOATING : NumberKind.INTEGRAL;
+    }
+
+    /**
      * 监听对象创建表达式
      *
      * @return 对象创建节点类别
@@ -73,7 +88,10 @@ public final class BigDecimalFloatingConstructorCheck extends RuleCheck {
         return switch (valueDetailAST.getType()) {
             case TokenTypes.NUM_FLOAT, TokenTypes.NUM_DOUBLE -> NumberKind.FLOATING;
             case TokenTypes.NUM_INT, TokenTypes.NUM_LONG, TokenTypes.CHAR_LITERAL -> NumberKind.INTEGRAL;
-            case TokenTypes.EXPR, TokenTypes.UNARY_PLUS, TokenTypes.UNARY_MINUS -> numberKind(valueDetailAST.getFirstChild());
+            case TokenTypes.EXPR, TokenTypes.UNARY_PLUS, TokenTypes.UNARY_MINUS -> {
+                var operand = valueDetailAST.getFirstChild();
+                yield numberKind(operand);
+            }
             case TokenTypes.TYPECAST -> declaredKind(valueDetailAST.findFirstToken(TokenTypes.TYPE));
             case TokenTypes.PLUS, TokenTypes.MINUS, TokenTypes.STAR, TokenTypes.DIV, TokenTypes.MOD -> {
                 var left = numberKind(valueDetailAST.getFirstChild());
@@ -129,21 +147,6 @@ public final class BigDecimalFloatingConstructorCheck extends RuleCheck {
         }
         return INTEGRAL_WRAPPERS.stream().anyMatch(type -> javaSource.isType(name, type))
                 ? NumberKind.INTEGRAL : NumberKind.UNKNOWN;
-    }
-
-    /**
-     * 仅在两边均为已识别数值时应用二元数值提升
-     *
-     * @param leftNumberKind  左操作数类别
-     * @param rightNumberKind 右操作数类别
-     * @return 运算结果类别或无法判断
-     */
-    private static NumberKind numericPromotion(NumberKind leftNumberKind, NumberKind rightNumberKind) {
-        if (leftNumberKind == NumberKind.UNKNOWN || rightNumberKind == NumberKind.UNKNOWN) {
-            return NumberKind.UNKNOWN;
-        }
-        return leftNumberKind == NumberKind.FLOATING || rightNumberKind == NumberKind.FLOATING
-                ? NumberKind.FLOATING : NumberKind.INTEGRAL;
     }
 
     /**

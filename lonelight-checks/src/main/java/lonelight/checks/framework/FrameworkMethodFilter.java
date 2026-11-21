@@ -15,40 +15,6 @@ import lonelight.checks.JavaSource;
  */
 public final class FrameworkMethodFilter extends AbstractAutomaticBean implements TreeWalkerFilter {
     /**
-     * 完成无需附加配置的过滤器初始化
-     */
-    @Override
-    protected void finishLocalSetup() {
-        // 方法注解在扫描时读取，无需预先加载
-    }
-
-    /**
-     * 按方法所用的框架注解过滤对应诊断
-     *
-     * @param event 待处理的扫描事件
-     * @return 应保留诊断时为 true
-     */
-    @Override
-    public boolean accept(TreeWalkerAuditEvent event) {
-        String check = event.getSourceName();
-        boolean naming = check.endsWith(".MethodNameCheck");
-        boolean missing = check.endsWith(".MissingJavadocMethodCheck");
-        boolean documentation = check.endsWith(".JavadocMethodCheck");
-        if (!naming && !missing && !documentation) {
-            return true;
-        }
-        DetailAST target = null;
-        for (DetailAST method : JavaSource.descendants(event.rootAst(), TokenTypes.METHOD_DEF)) {
-            DetailAST comment = naming ? null : JavadocUtil.getAttachedJavadocComment(method);
-            if (contains(event, comment == null ? method : comment, lastToken(method))) {
-                // 先访问外层方法，因此后匹配的局部类方法优先
-                target = method;
-            }
-        }
-        return target == null || !exempt(target, event.rootAst(), naming, missing);
-    }
-
-    /**
      * 判断两个节点限定的范围是否包含诊断位置
      *
      * @param event 待定位的扫描事件
@@ -87,5 +53,39 @@ public final class FrameworkMethodFilter extends AbstractAutomaticBean implement
      */
     private static DetailAST lastToken(DetailAST node) {
         return node.getLastChild() == null ? node : lastToken(node.getLastChild());
+    }
+
+    /**
+     * 完成无需附加配置的过滤器初始化
+     */
+    @Override
+    protected void finishLocalSetup() {
+        // 方法注解在扫描时读取，无需预先加载
+    }
+
+    /**
+     * 按方法所用的框架注解过滤对应诊断
+     *
+     * @param event 待处理的扫描事件
+     * @return 应保留诊断时为 true
+     */
+    @Override
+    public boolean accept(TreeWalkerAuditEvent event) {
+        String check = event.getSourceName();
+        boolean naming = check.endsWith(".MethodNameCheck");
+        boolean missing = check.endsWith(".MissingJavadocMethodCheck");
+        boolean documentation = check.endsWith(".JavadocMethodCheck");
+        if (!naming && !missing && !documentation) {
+            return true;
+        }
+        DetailAST target = null;
+        for (DetailAST method : JavaSource.descendants(event.rootAst(), TokenTypes.METHOD_DEF)) {
+            DetailAST comment = naming ? null : JavadocUtil.getAttachedJavadocComment(method);
+            if (contains(event, comment == null ? method : comment, lastToken(method))) {
+                // 先访问外层方法，因此后匹配的局部类方法优先
+                target = method;
+            }
+        }
+        return target == null || !exempt(target, event.rootAst(), naming, missing);
     }
 }

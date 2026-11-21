@@ -17,19 +17,43 @@ import java.util.Set;
  */
 public final class QualifiedAnnotationCheck extends RuleCheck {
     /**
+     * 按短名索引的注解类型
+     */
+    private final Map<String, Set<String>> annotationsByName = new HashMap<>();
+    /**
+     * 当前文件中已使用的类型短名
+     */
+    private final Set<String> shortTypeNames = new HashSet<>();
+    /**
      * 当前文件的名称索引
      */
     private JavaSource source;
 
     /**
-     * 按短名索引的注解类型
+     * 判断标识符是否处于简单类型引用位置
+     *
+     * @param ident 待检查的标识符节点
+     * @return 属于规则识别的类型位置时为 true
      */
-    private final Map<String, Set<String>> annotationsByName = new HashMap<>();
+    private static boolean isShortType(DetailAST ident) {
+        int parent = ident.getParent().getType();
+        return parent == TokenTypes.TYPE || parent == TokenTypes.TYPE_ARGUMENT || parent == TokenTypes.ARRAY_DECLARATOR
+                || parent == TokenTypes.EXTENDS_CLAUSE || parent == TokenTypes.IMPLEMENTS_CLAUSE
+                || parent == TokenTypes.LITERAL_NEW;
+    }
 
     /**
-     * 当前文件中已使用的类型短名
+     * 判断注解名是否符合包限定名的形式
+     *
+     * @param name 源码中的注解名称
+     * @return 前缀符合包名形式时为 true
      */
-    private final Set<String> shortTypeNames = new HashSet<>();
+    private static boolean isPackageQualified(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 && name.substring(0, dot).codePoints()
+                .allMatch(character -> character == '.' || character == '_' || Character.isLowerCase(character)
+                        || Character.isDigit(character));
+    }
 
     /**
      * 监听需要检查的注解
@@ -80,31 +104,5 @@ public final class QualifiedAnnotationCheck extends RuleCheck {
             return;
         }
         log(annotation, "annotation.qualified", simple);
-    }
-
-    /**
-     * 判断标识符是否处于简单类型引用位置
-     *
-     * @param ident 待检查的标识符节点
-     * @return 属于规则识别的类型位置时为 true
-     */
-    private static boolean isShortType(DetailAST ident) {
-        int parent = ident.getParent().getType();
-        return parent == TokenTypes.TYPE || parent == TokenTypes.TYPE_ARGUMENT || parent == TokenTypes.ARRAY_DECLARATOR
-                || parent == TokenTypes.EXTENDS_CLAUSE || parent == TokenTypes.IMPLEMENTS_CLAUSE
-                || parent == TokenTypes.LITERAL_NEW;
-    }
-
-    /**
-     * 判断注解名是否符合包限定名的形式
-     *
-     * @param name 源码中的注解名称
-     * @return 前缀符合包名形式时为 true
-     */
-    private static boolean isPackageQualified(String name) {
-        int dot = name.lastIndexOf('.');
-        return dot > 0 && name.substring(0, dot).codePoints()
-                .allMatch(character -> character == '.' || character == '_' || Character.isLowerCase(character)
-                        || Character.isDigit(character));
     }
 }

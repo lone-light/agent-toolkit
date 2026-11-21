@@ -31,54 +31,6 @@ public final class JavaVariables {
     }
 
     /**
-     * 收集能声明变量名或遮蔽同名变量的节点
-     *
-     * @param nodeDetailAST 当前语法树节点
-     */
-    private void index(DetailAST nodeDetailAST) {
-        var nameDetailAST = switch (nodeDetailAST.getType()) {
-            case TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF,
-                 TokenTypes.PATTERN_VARIABLE_DEF, TokenTypes.LAMBDA -> nodeDetailAST.findFirstToken(TokenTypes.IDENT);
-            default -> null;
-        };
-        if (nameDetailAST != null) {
-            declarations.computeIfAbsent(nameDetailAST.getText(), name -> new ArrayList<>(1)).add(nodeDetailAST);
-        }
-        for (var childDetailAST = nodeDetailAST.getFirstChild(); childDetailAST != null;
-             childDetailAST = childDetailAST.getNextSibling()) {
-            index(childDetailAST);
-        }
-    }
-
-    /**
-     * 按作用域深度定位接收者的声明
-     *
-     * @param usageDetailAST 引用节点
-     * @param name           接收者名称
-     * @param explicitThis   是否只查找显式访问的实例字段
-     * @return 可见的匹配声明，找不到时为 null
-     */
-    public DetailAST find(DetailAST usageDetailAST, String name, boolean explicitThis) {
-        DetailAST selectedDetailAST = null;
-        int selectedDepth = -1;
-        for (var declarationDetailAST : declarations.getOrDefault(name, List.of())) {
-            int container = declarationDetailAST.getParent().getType();
-            boolean field = container == TokenTypes.OBJBLOCK || container == TokenTypes.RECORD_COMPONENTS;
-            if (explicitThis && !field) {
-                continue;
-            }
-            int depth = enclosingDepth(usageDetailAST, scope(declarationDetailAST));
-            boolean beforeUse = declarationDetailAST.getLineNo() < usageDetailAST.getLineNo()
-                    || declarationDetailAST.getLineNo() == usageDetailAST.getLineNo() && declarationDetailAST.getColumnNo() < usageDetailAST.getColumnNo();
-            if (depth > selectedDepth && (field || beforeUse)) {
-                selectedDetailAST = declarationDetailAST;
-                selectedDepth = depth;
-            }
-        }
-        return selectedDetailAST;
-    }
-
-    /**
      * 取得普通声明的词法范围和模式变量可能产生遮蔽的代码块
      *
      * @param declarationDetailAST 变量声明节点
@@ -125,5 +77,53 @@ public final class JavaVariables {
             }
         }
         return -1;
+    }
+
+    /**
+     * 收集能声明变量名或遮蔽同名变量的节点
+     *
+     * @param nodeDetailAST 当前语法树节点
+     */
+    private void index(DetailAST nodeDetailAST) {
+        var nameDetailAST = switch (nodeDetailAST.getType()) {
+            case TokenTypes.VARIABLE_DEF, TokenTypes.PARAMETER_DEF, TokenTypes.RECORD_COMPONENT_DEF,
+                 TokenTypes.PATTERN_VARIABLE_DEF, TokenTypes.LAMBDA -> nodeDetailAST.findFirstToken(TokenTypes.IDENT);
+            default -> null;
+        };
+        if (nameDetailAST != null) {
+            declarations.computeIfAbsent(nameDetailAST.getText(), name -> new ArrayList<>(1)).add(nodeDetailAST);
+        }
+        for (var childDetailAST = nodeDetailAST.getFirstChild(); childDetailAST != null;
+             childDetailAST = childDetailAST.getNextSibling()) {
+            index(childDetailAST);
+        }
+    }
+
+    /**
+     * 按作用域深度定位接收者的声明
+     *
+     * @param usageDetailAST 引用节点
+     * @param name           接收者名称
+     * @param explicitThis   是否只查找显式访问的实例字段
+     * @return 可见的匹配声明，找不到时为 null
+     */
+    public DetailAST find(DetailAST usageDetailAST, String name, boolean explicitThis) {
+        DetailAST selectedDetailAST = null;
+        int selectedDepth = -1;
+        for (var declarationDetailAST : declarations.getOrDefault(name, List.of())) {
+            int container = declarationDetailAST.getParent().getType();
+            boolean field = container == TokenTypes.OBJBLOCK || container == TokenTypes.RECORD_COMPONENTS;
+            if (explicitThis && !field) {
+                continue;
+            }
+            int depth = enclosingDepth(usageDetailAST, scope(declarationDetailAST));
+            boolean beforeUse = declarationDetailAST.getLineNo() < usageDetailAST.getLineNo()
+                    || declarationDetailAST.getLineNo() == usageDetailAST.getLineNo() && declarationDetailAST.getColumnNo() < usageDetailAST.getColumnNo();
+            if (depth > selectedDepth && (field || beforeUse)) {
+                selectedDetailAST = declarationDetailAST;
+                selectedDepth = depth;
+            }
+        }
+        return selectedDetailAST;
     }
 }

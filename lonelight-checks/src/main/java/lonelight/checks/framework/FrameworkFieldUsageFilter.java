@@ -26,6 +26,42 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
     private Set<String> typeAnnotations = Set.of();
 
     /**
+     * 判断声明是否由框架使用或显式豁免
+     *
+     * @param declaration 字段或类型声明节点
+     * @param allowed     允许豁免的注解全限定名
+     * @param source      当前文件的名称索引
+     * @return 存在生效的豁免注解时为 true
+     */
+    private static boolean hasExemption(DetailAST declaration, Set<String> allowed, JavaSource source) {
+        for (DetailAST annotation : JavaSource.annotations(declaration)) {
+            if (allowed.stream().anyMatch(name -> source.isType(JavaSource.annotationName(annotation), name))) {
+                DetailAST value = JavaSource.attribute(annotation, "value");
+                boolean disabled = value != null && JavaSource.descendants(value, TokenTypes.IDENT).stream()
+                        .anyMatch(identifier -> identifier.getText().equals("NONE"));
+                if (!disabled) {
+                    return true;
+                }
+            }
+        }
+        return hasUnusedSuppression(declaration, source);
+    }
+
+    /**
+     * 识别显式声明的 unused 豁免
+     *
+     * @param declaration 字段或类型声明节点
+     * @param source      当前文件的名称索引
+     * @return 明确抑制 unused 警告时为 true
+     */
+    private static boolean hasUnusedSuppression(DetailAST declaration, JavaSource source) {
+        return JavaSource.annotations(declaration).stream()
+                .filter(annotation -> source.isType(JavaSource.annotationName(annotation), "java.lang.SuppressWarnings"))
+                .flatMap(annotation -> JavaSource.descendants(annotation, TokenTypes.STRING_LITERAL).stream())
+                .anyMatch(literal -> literal.getText().equals("\"unused\""));
+    }
+
+    /**
      * 供 Checkstyle 从 XML 配置可豁免未使用检查的字段注解
      *
      * @param values 字段注解的全限定名
@@ -77,41 +113,5 @@ public final class FrameworkFieldUsageFilter extends AbstractAutomaticBean imple
             return type == null || !hasExemption(type, typeAnnotations, source);
         }
         return true;
-    }
-
-    /**
-     * 判断声明是否由框架使用或显式豁免
-     *
-     * @param declaration 字段或类型声明节点
-     * @param allowed     允许豁免的注解全限定名
-     * @param source      当前文件的名称索引
-     * @return 存在生效的豁免注解时为 true
-     */
-    private static boolean hasExemption(DetailAST declaration, Set<String> allowed, JavaSource source) {
-        for (DetailAST annotation : JavaSource.annotations(declaration)) {
-            if (allowed.stream().anyMatch(name -> source.isType(JavaSource.annotationName(annotation), name))) {
-                DetailAST value = JavaSource.attribute(annotation, "value");
-                boolean disabled = value != null && JavaSource.descendants(value, TokenTypes.IDENT).stream()
-                        .anyMatch(identifier -> identifier.getText().equals("NONE"));
-                if (!disabled) {
-                    return true;
-                }
-            }
-        }
-        return hasUnusedSuppression(declaration, source);
-    }
-
-    /**
-     * 识别显式声明的 unused 豁免
-     *
-     * @param declaration 字段或类型声明节点
-     * @param source      当前文件的名称索引
-     * @return 明确抑制 unused 警告时为 true
-     */
-    private static boolean hasUnusedSuppression(DetailAST declaration, JavaSource source) {
-        return JavaSource.annotations(declaration).stream()
-                .filter(annotation -> source.isType(JavaSource.annotationName(annotation), "java.lang.SuppressWarnings"))
-                .flatMap(annotation -> JavaSource.descendants(annotation, TokenTypes.STRING_LITERAL).stream())
-                .anyMatch(literal -> literal.getText().equals("\"unused\""));
     }
 }

@@ -29,6 +29,25 @@ public final class ExecutorFactoryCheck extends RuleCheck {
     private JavaVariables javaVariables;
 
     /**
+     * 检查外层类中是否声明了同名方法
+     *
+     * @param usageDetailAST 调用节点
+     * @param name           目标方法名
+     * @return 存在本地声明时为 true
+     */
+    private static boolean hasLocalMethod(DetailAST usageDetailAST, String name) {
+        for (var ownerDetailAST = JavaSource.enclosingType(usageDetailAST); ownerDetailAST != null;
+             ownerDetailAST = JavaSource.enclosingType(ownerDetailAST)) {
+            var members = JavaSource.children(ownerDetailAST.findFirstToken(TokenTypes.OBJBLOCK));
+            if (members.stream().anyMatch(member -> member.getType() == TokenTypes.METHOD_DEF
+                    && JavaSource.declarationName(member).getText().equals(name))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 监听调用及方法引用
      *
      * @return 对应的 Java 节点类别
@@ -86,24 +105,5 @@ public final class ExecutorFactoryCheck extends RuleCheck {
         String name = FullIdent.createFullIdent(qualifierDetailAST).getText();
         return javaSource.isKnownType(name, OWNER)
                 && (kind != TokenTypes.IDENT || javaVariables.find(usageDetailAST, name, false) == null);
-    }
-
-    /**
-     * 检查外层类中是否声明了同名方法
-     *
-     * @param usageDetailAST 调用节点
-     * @param name           目标方法名
-     * @return 存在本地声明时为 true
-     */
-    private static boolean hasLocalMethod(DetailAST usageDetailAST, String name) {
-        for (var ownerDetailAST = JavaSource.enclosingType(usageDetailAST); ownerDetailAST != null;
-             ownerDetailAST = JavaSource.enclosingType(ownerDetailAST)) {
-            var members = JavaSource.children(ownerDetailAST.findFirstToken(TokenTypes.OBJBLOCK));
-            if (members.stream().anyMatch(member -> member.getType() == TokenTypes.METHOD_DEF
-                    && JavaSource.declarationName(member).getText().equals(name))) {
-                return true;
-            }
-        }
-        return false;
     }
 }

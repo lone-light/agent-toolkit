@@ -35,6 +35,43 @@ public final class RequestValidationCheck extends RuleCheck {
     private ApiSourceModels apiSourceModels;
 
     /**
+     * 判断成员是否为 JavaBean 访问器
+     *
+     * @param memberDetailAST 待检查的成员节点
+     * @return 为无参的非静态 getter 时为 true
+     */
+    private static boolean isGetter(DetailAST memberDetailAST) {
+        var parameters = memberDetailAST.findFirstToken(TokenTypes.PARAMETERS);
+        return memberDetailAST.getType() == TokenTypes.METHOD_DEF && !JavaSource.isExplicitlyStatic(memberDetailAST)
+                && parameters != null && !parameters.hasChildren()
+                && JavaSource.declarationName(memberDetailAST).getText().matches("(?:get|is)[A-Z].*");
+    }
+
+    /**
+     * 检查声明是否启用了级联校验
+     *
+     * @param nodeDetailAST       待检查的声明
+     * @param declaringJavaSource 声明所在文件的名称索引
+     * @return 标注标准 Valid 时为 true
+     */
+    private static boolean hasCascade(DetailAST nodeDetailAST, JavaSource declaringJavaSource) {
+        return JavaSource.annotations(nodeDetailAST).stream()
+                .anyMatch(annotationDetailAST -> isValid(annotationDetailAST, declaringJavaSource));
+    }
+
+    /**
+     * 匹配标准级联校验注解
+     *
+     * @param annotationDetailAST 待匹配的注解节点
+     * @param declaringJavaSource 名称所在文件的解析信息
+     * @return 匹配 Jakarta 或 javax Valid 时为 true
+     */
+    private static boolean isValid(DetailAST annotationDetailAST, JavaSource declaringJavaSource) {
+        return declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "jakarta.validation.Valid")
+                || declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "javax.validation.Valid");
+    }
+
+    /**
      * 监听候选接口方法
      *
      * @return 方法声明节点类别
@@ -172,19 +209,6 @@ public final class RequestValidationCheck extends RuleCheck {
     }
 
     /**
-     * 判断成员是否为 JavaBean 访问器
-     *
-     * @param memberDetailAST 待检查的成员节点
-     * @return 为无参的非静态 getter 时为 true
-     */
-    private static boolean isGetter(DetailAST memberDetailAST) {
-        var parameters = memberDetailAST.findFirstToken(TokenTypes.PARAMETERS);
-        return memberDetailAST.getType() == TokenTypes.METHOD_DEF && !JavaSource.isExplicitlyStatic(memberDetailAST)
-                && parameters != null && !parameters.hasChildren()
-                && JavaSource.declarationName(memberDetailAST).getText().matches("(?:get|is)[A-Z].*");
-    }
-
-    /**
      * 判断声明是否标注了校验约束
      *
      * @param declarationDetailAST 待检查的声明
@@ -216,29 +240,5 @@ public final class RequestValidationCheck extends RuleCheck {
         return model != null && model.tree().getType() == TokenTypes.ANNOTATION_DEF
                 && (model.source().hasKnownAnnotation(model.tree(), "jakarta.validation.Constraint")
                 || model.source().hasKnownAnnotation(model.tree(), "javax.validation.Constraint"));
-    }
-
-    /**
-     * 检查声明是否启用了级联校验
-     *
-     * @param nodeDetailAST       待检查的声明
-     * @param declaringJavaSource 声明所在文件的名称索引
-     * @return 标注标准 Valid 时为 true
-     */
-    private static boolean hasCascade(DetailAST nodeDetailAST, JavaSource declaringJavaSource) {
-        return JavaSource.annotations(nodeDetailAST).stream()
-                .anyMatch(annotationDetailAST -> isValid(annotationDetailAST, declaringJavaSource));
-    }
-
-    /**
-     * 匹配标准级联校验注解
-     *
-     * @param annotationDetailAST 待匹配的注解节点
-     * @param declaringJavaSource 名称所在文件的解析信息
-     * @return 匹配 Jakarta 或 javax Valid 时为 true
-     */
-    private static boolean isValid(DetailAST annotationDetailAST, JavaSource declaringJavaSource) {
-        return declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "jakarta.validation.Valid")
-                || declaringJavaSource.isKnownAnnotationType(annotationDetailAST, "javax.validation.Valid");
     }
 }

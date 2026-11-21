@@ -26,6 +26,23 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
     private JavaVariables javaVariables;
 
     /**
+     * 读取变量名或通过 this 访问的字段名
+     *
+     * @param receiverDetailAST 调用接收者节点
+     * @return 接收者名称，无法识别时为空字符串
+     */
+    private static String receiverName(DetailAST receiverDetailAST) {
+        if (receiverDetailAST.getType() == TokenTypes.IDENT) {
+            return receiverDetailAST.getText();
+        }
+        if (receiverDetailAST.getType() == TokenTypes.DOT
+                && receiverDetailAST.getFirstChild().getType() == TokenTypes.LITERAL_THIS) {
+            return receiverDetailAST.getLastChild().getText();
+        }
+        return "";
+    }
+
+    /**
      * 监听日志检查所需的方法调用
      *
      * @return 方法调用节点类别
@@ -68,23 +85,6 @@ public final class LoggingPlaceholderCheck extends RuleCheck {
                 && !JavaSource.descendants(message, TokenTypes.IDENT).isEmpty()) {
             log(message, "logging.placeholder");
         }
-    }
-
-    /**
-     * 读取变量名或通过 this 访问的字段名
-     *
-     * @param receiverDetailAST 调用接收者节点
-     * @return 接收者名称，无法识别时为空字符串
-     */
-    private static String receiverName(DetailAST receiverDetailAST) {
-        if (receiverDetailAST.getType() == TokenTypes.IDENT) {
-            return receiverDetailAST.getText();
-        }
-        if (receiverDetailAST.getType() == TokenTypes.DOT
-                && receiverDetailAST.getFirstChild().getType() == TokenTypes.LITERAL_THIS) {
-            return receiverDetailAST.getLastChild().getText();
-        }
-        return "";
     }
 
     /**

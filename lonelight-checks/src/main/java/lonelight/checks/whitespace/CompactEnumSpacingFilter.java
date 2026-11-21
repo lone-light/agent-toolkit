@@ -16,29 +16,6 @@ import lonelight.checks.JavaSource;
  */
 public final class CompactEnumSpacingFilter extends AbstractAutomaticBean implements TreeWalkerFilter {
     /**
-     * 完成无需附加配置的过滤器初始化
-     */
-    @Override
-    protected void finishLocalSetup() {
-        // 枚举位置从当前文件的语法树读取
-    }
-
-    /**
-     * 保留单行枚举花括号内侧之外的空格和换行诊断
-     *
-     * @param event 待过滤的诊断
-     * @return 应保留诊断时为 true
-     */
-    @Override
-    public boolean accept(TreeWalkerAuditEvent event) {
-        if (!isInnerBraceViolation(event)) {
-            return true;
-        }
-        return JavaSource.descendants(event.rootAst(), TokenTypes.ENUM_DEF).stream()
-                .noneMatch(enumeration -> isCompactBrace(enumeration, event));
-    }
-
-    /**
      * 匹配花括号内侧的空格或换行诊断
      *
      * @param event 待判断的诊断
@@ -77,5 +54,28 @@ public final class CompactEnumSpacingFilter extends AbstractAutomaticBean implem
         var brace = event.getTokenType() == TokenTypes.RCURLY ? close : open;
         return brace.getLineNo() == event.getLine()
                 && brace.getColumnNo() == event.getColumnCharIndex();
+    }
+
+    /**
+     * 完成无需附加配置的过滤器初始化
+     */
+    @Override
+    protected void finishLocalSetup() {
+        // 枚举位置从当前文件的语法树读取
+    }
+
+    /**
+     * 保留单行枚举花括号内侧之外的空格和换行诊断
+     *
+     * @param event 待过滤的诊断
+     * @return 应保留诊断时为 true
+     */
+    @Override
+    public boolean accept(TreeWalkerAuditEvent event) {
+        if (!isInnerBraceViolation(event)) {
+            return true;
+        }
+        return JavaSource.descendants(event.rootAst(), TokenTypes.ENUM_DEF).stream()
+                .noneMatch(enumeration -> isCompactBrace(enumeration, event));
     }
 }

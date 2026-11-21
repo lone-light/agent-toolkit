@@ -12,23 +12,30 @@ import lonelight.checks.RuleCheck;
  */
 public final class ImportGroupSpacingCheck extends RuleCheck {
     /**
-     * 标识 IDEA 默认布局的四类导入组
-     *
-     * @author lonelight
-     */
-    private enum Group {
-        OTHER, JAVAX, JAVA, STATIC
-    }
-
-    /**
      * 上一条导入所属的分组
      */
     private Group previousGroup;
-
     /**
      * 上一条导入结束的位置
      */
     private int previousEnd;
+
+    /**
+     * 确定导入声明所属的组
+     *
+     * @param node 待归类的导入声明
+     * @return 导入分组
+     */
+    private static Group group(DetailAST node) {
+        if (node.getType() == TokenTypes.STATIC_IMPORT) {
+            return Group.STATIC;
+        }
+        String name = FullIdent.createFullIdentBelow(node).getText();
+        if (name.startsWith("javax.")) {
+            return Group.JAVAX;
+        }
+        return name.startsWith("java.") ? Group.JAVA : Group.OTHER;
+    }
 
     /**
      * 监听普通导入和静态导入
@@ -86,19 +93,11 @@ public final class ImportGroupSpacingCheck extends RuleCheck {
     }
 
     /**
-     * 确定导入声明所属的组
+     * 标识 IDEA 默认布局的四类导入组
      *
-     * @param node 待归类的导入声明
-     * @return 导入分组
+     * @author lonelight
      */
-    private static Group group(DetailAST node) {
-        if (node.getType() == TokenTypes.STATIC_IMPORT) {
-            return Group.STATIC;
-        }
-        String name = FullIdent.createFullIdentBelow(node).getText();
-        if (name.startsWith("javax.")) {
-            return Group.JAVAX;
-        }
-        return name.startsWith("java.") ? Group.JAVA : Group.OTHER;
+    private enum Group {
+        OTHER, JAVAX, JAVA, STATIC
     }
 }

@@ -20,6 +20,38 @@ public final class FieldJavadocCheck extends RuleCheck {
     private JavaSource source;
 
     /**
+     * 检查 record 类型的 Javadoc 是否说明了当前组件
+     *
+     * @param nodeDetailAST 待检查的声明节点
+     * @return 存在同名有效参数说明时为 true
+     */
+    private static boolean hasRecordDescription(DetailAST nodeDetailAST) {
+        if (nodeDetailAST.getType() != TokenTypes.RECORD_COMPONENT_DEF) {
+            return false;
+        }
+        var owner = JavaSource.enclosingType(nodeDetailAST);
+        var documentation = owner == null ? null : JavadocUtil.getAttachedJavadocComment(owner);
+        if (documentation == null) {
+            return false;
+        }
+        String name = JavaSource.declarationName(nodeDetailAST).getText();
+        return Pattern.compile("@param\\s+" + Pattern.quote(name) + "\\s+[^\\s*]+")
+                .matcher(JavadocUtil.getJavadocCommentContent(documentation)).find();
+    }
+
+    /**
+     * 判断字段是否有非空 Javadoc
+     *
+     * @param nodeDetailAST 待检查的字段
+     * @return Javadoc 中包含内容时为 true
+     */
+    private static boolean hasFieldJavadoc(DetailAST nodeDetailAST) {
+        var documentation = JavadocUtil.getAttachedJavadocComment(nodeDetailAST);
+        return documentation != null && !JavadocUtil.getJavadocCommentContent(documentation)
+                .replaceAll("/\\*\\*|\\*/|(?m)^\\s*\\*", "").isBlank();
+    }
+
+    /**
      * 监听变量声明和 record 组件
      *
      * @return 用于检查字段说明的节点类别
@@ -65,26 +97,6 @@ public final class FieldJavadocCheck extends RuleCheck {
     }
 
     /**
-     * 检查 record 类型的 Javadoc 是否说明了当前组件
-     *
-     * @param nodeDetailAST 待检查的声明节点
-     * @return 存在同名有效参数说明时为 true
-     */
-    private static boolean hasRecordDescription(DetailAST nodeDetailAST) {
-        if (nodeDetailAST.getType() != TokenTypes.RECORD_COMPONENT_DEF) {
-            return false;
-        }
-        var owner = JavaSource.enclosingType(nodeDetailAST);
-        var documentation = owner == null ? null : JavadocUtil.getAttachedJavadocComment(owner);
-        if (documentation == null) {
-            return false;
-        }
-        String name = JavaSource.declarationName(nodeDetailAST).getText();
-        return Pattern.compile("@param\\s+" + Pattern.quote(name) + "\\s+[^\\s*]+")
-                .matcher(JavadocUtil.getJavadocCommentContent(documentation)).find();
-    }
-
-    /**
      * 判断字段注解是否提供说明或将字段隐藏
      *
      * @param annotationDetailAST 字段注解
@@ -104,17 +116,5 @@ public final class FieldJavadocCheck extends RuleCheck {
         String description = JavaSource.literalText(descriptionValue);
         return hidden != null && hidden.findFirstToken(TokenTypes.LITERAL_TRUE) != null
                 || descriptionValue != null && (description == null || !description.isBlank());
-    }
-
-    /**
-     * 判断字段是否有非空 Javadoc
-     *
-     * @param nodeDetailAST 待检查的字段
-     * @return Javadoc 中包含内容时为 true
-     */
-    private static boolean hasFieldJavadoc(DetailAST nodeDetailAST) {
-        var documentation = JavadocUtil.getAttachedJavadocComment(nodeDetailAST);
-        return documentation != null && !JavadocUtil.getJavadocCommentContent(documentation)
-                .replaceAll("/\\*\\*|\\*/|(?m)^\\s*\\*", "").isBlank();
     }
 }
