@@ -14,16 +14,23 @@ export const cases = {
     base: ['vue/block-lang'],
   },
   'src/components/InvalidEvent.vue': {
-    base: ['vue/define-macros-order', 'vue/require-explicit-emits'],
+    base: [
+      'vue/define-macros-order',
+      'vue/require-explicit-emits',
+      'lonelight-docs/vue-contract',
+      'lonelight-docs/vue-contract',
+    ],
   },
   'src/ImportOrder.ts': {
-    base: ['import-x/order'],
+    base: ['import-x/order', 'lonelight-docs/required', 'lonelight-docs/required'],
   },
   'src/ApiBoundary.ts': {
+    base: ['lonelight-docs/required', 'lonelight-docs/required', 'lonelight-docs/required'],
     project: ['no-restricted-globals', 'no-restricted-imports', 'no-restricted-syntax'],
   },
-  'src/api/AxiosClient.ts': {},
+  'src/api/AxiosClient.ts': { base: ['lonelight-docs/required', 'lonelight-docs/required'] },
   'src/StoreNames.ts': {
+    base: ['lonelight-docs/required'],
     project: ['lonelight/pinia-store-naming', 'lonelight/pinia-store-naming'],
   },
   'src/PromiseHandling.ts': {
@@ -32,5 +39,11 @@ export const cases = {
   'src/components/UnhandledRequest.vue': {
     project: ['@typescript-eslint/no-floating-promises'],
   },
+  'src/FormatExample.ts': {},
+  'src/api/status.ts': {},
+  'src/components/DraftEditor.vue': {},
+  'src/components/EmptyState.vue': {},
+  'src/components/StatusCard.vue': {},
+  'src/components/draft.ts': {},
   'tools/OutsideProject.ts': {},
 }
