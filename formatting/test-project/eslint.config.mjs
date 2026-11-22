@@ -102,6 +102,17 @@ function withoutDocumentationTagType(text) {
 }
 
 /**
+ * 忽略标签中用于占位的标点和连接符
+ *
+ * @param {string} text - 去除参数名或类型后的标签内容
+ * @returns {string} 标签说明，仅含占位字符时返回空字符串
+ */
+function documentationDescription(text) {
+  const description = text.trim().replace(/^-\s*/, '').trim()
+  return /^[\s\p{P}\u2212]*$/u.test(description) ? '' : description
+}
+
+/**
  * 判断单句说明是否带有应省略的句号
  *
  * @param {string} text - 摘要或标签说明
@@ -175,21 +186,31 @@ const jsdocLayoutRule = {
           if (summary.length === 1 && hasShortDocumentationPeriod(summary[0])) {
             context.report({ loc, messageId: 'punctuation' })
           }
-          const signatureTags = tags.filter(({ name }) => documentationTagOrder.includes(name))
-          if (signatureTags.length === 0) continue
-          const firstTagLine = tags[0].line
-          if (
-            summary.length &&
-            (lines[firstTagLine - 1].trim() || !lines[firstTagLine - 2]?.trim())
-          ) {
-            context.report({ loc, messageId: 'tagSpacing' })
+          if (tags.some(({ name }) => documentationTagOrder.includes(name))) {
+            const firstTagLine = tags[0].line
+            if (
+              summary.length &&
+              (lines[firstTagLine - 1].trim() || !lines[firstTagLine - 2]?.trim())
+            ) {
+              context.report({ loc, messageId: 'tagSpacing' })
+            }
           }
 
           let lastTag = -1
-          for (const tag of signatureTags) {
+          for (const tag of tags) {
             const tagLine = start.line + tag.line
             const atTag = { line: tagLine, column: sourceCode.lines[tagLine - 1].indexOf('@') }
             const order = documentationTagOrder.indexOf(tag.name)
+            if (order === -1) {
+              if (
+                (tag.name === 'summary' || tag.name === 'description') &&
+                !tag.continued &&
+                hasShortDocumentationPeriod(tag.text)
+              ) {
+                context.report({ loc: atTag, messageId: 'punctuation' })
+              }
+              continue
+            }
             if (order < lastTag) context.report({ loc: atTag, messageId: 'tagOrder' })
             lastTag = Math.max(lastTag, order)
             if (tag.continued) {
@@ -198,8 +219,8 @@ const jsdocLayoutRule = {
             const description =
               tag.name === 'param'
                 ? readDocumentationParameter(tag.text).description
-                : withoutDocumentationTagType(tag.text)
-            if (tag.name === 'throws' && (!description || description === '-')) {
+                : documentationDescription(withoutDocumentationTagType(tag.text))
+            if (tag.name === 'throws' && !description) {
               context.report({ loc: atTag, messageId: 'emptyThrows' })
             }
             if (hasShortDocumentationPeriod(description) && !tag.continued) {
@@ -367,24 +388,20 @@ function matchesDocumentationParameterPath(parameter, path) {
   if (path.length === 0) return true
   const pattern = unwrapDocumentationParameter(parameter)
   const [part, ...remaining] = path
-  if (pattern.type === 'ObjectPattern') {
-    let open = false
-    for (const property of pattern.properties) {
-      const name = property.type === 'Property' ? documentationMemberName(property) : undefined
-      if (name === undefined) open = true
-      else if (name === part && property.type === 'Property') {
-        return matchesDocumentationParameterPath(property.value, remaining)
-      }
-    }
-    return open
-  }
   const type =
-    pattern.type === 'TSTypeLiteral'
-      ? pattern
-      : 'typeAnnotation' in pattern && pattern.typeAnnotation?.type === 'TSTypeAnnotation'
-        ? pattern.typeAnnotation.typeAnnotation
-        : undefined
-  if (type?.type === 'TSTypeLiteral') {
+    'typeAnnotation' in pattern && pattern.typeAnnotation?.type === 'TSTypeAnnotation'
+      ? pattern.typeAnnotation.typeAnnotation
+      : pattern
+  if (type.type === 'TSNamedTupleMember') {
+    return matchesDocumentationParameterPath(type.elementType, path)
+  }
+  if (
+    type.type === 'TSOptionalType' ||
+    (type.type === 'TSTypeOperator' && type.operator === 'readonly')
+  ) {
+    return !type.typeAnnotation || matchesDocumentationParameterPath(type.typeAnnotation, path)
+  }
+  if (type.type === 'TSTypeLiteral') {
     let open = false
     for (const member of type.members) {
       if (member.type === 'TSIndexSignature') open = true
@@ -395,11 +412,39 @@ function matchesDocumentationParameterPath(parameter, path) {
     }
     return open
   }
-  if (type?.type === 'TSArrayType') {
+  if (type.type === 'TSArrayType') {
     return (
       (part === '*' || /^(?:0|[1-9]\d*)$/.test(part)) &&
       matchesDocumentationParameterPath(type.elementType, remaining)
     )
+  }
+  if (type.type === 'TSTupleType') {
+    const { elementTypes } = type
+    if (part === '*') {
+      return elementTypes.some((element) => matchesDocumentationParameterPath(element, remaining))
+    }
+    if (!/^(?:0|[1-9]\d*)$/.test(part)) return false
+    const index = Number(part)
+    const rest = elementTypes.findIndex(
+      (element) =>
+        (element.type === 'TSNamedTupleMember' ? element.elementType : element).type ===
+        'TSRestType',
+    )
+    if (rest !== -1 && index >= rest) return true
+    return Boolean(
+      elementTypes[index] && matchesDocumentationParameterPath(elementTypes[index], remaining),
+    )
+  }
+  if (pattern.type === 'ObjectPattern') {
+    let open = false
+    for (const property of pattern.properties) {
+      const name = property.type === 'Property' ? documentationMemberName(property) : undefined
+      if (name === undefined) open = true
+      else if (name === part && property.type === 'Property') {
+        return matchesDocumentationParameterPath(property.value, remaining)
+      }
+    }
+    return open
   }
   if (pattern.type === 'ArrayPattern') {
     if (part === '*') {
@@ -477,7 +522,7 @@ function readDocumentationParameter(text) {
   const afterName = body.slice(endOfName)
   return {
     name: optional ? body.slice(1, defaultStart ?? endOfName - 1).trim() : body.slice(0, endOfName),
-    description: afterName.trim().replace(/^-\s*/, '').trim(),
+    description: documentationDescription(afterName),
     separated: /^[ \t]+-[ \t]+/.test(afterName),
   }
 }
@@ -486,18 +531,19 @@ function readDocumentationParameter(text) {
  * 根据显式返回类型判断签名是否提供返回值
  *
  * @param {DocumentationNode} node - TypeScript 返回类型或其包装节点
+ * @param {import('eslint').SourceCode} sourceCode - 当前源码及变量作用域
  * @returns {boolean | undefined} 未知类型交给类型服务或后续语法分析
  */
-function documentationReturnAnnotation(node) {
+function documentationReturnAnnotation(node, sourceCode) {
   switch (node.type) {
     case 'TSTypeAnnotation':
-      return documentationReturnAnnotation(node.typeAnnotation)
+      return documentationReturnAnnotation(node.typeAnnotation, sourceCode)
     case 'TSVoidKeyword':
     case 'TSUndefinedKeyword':
     case 'TSNeverKeyword':
       return false
     case 'TSUnionType': {
-      const variants = node.types.map(documentationReturnAnnotation)
+      const variants = node.types.map((type) => documentationReturnAnnotation(type, sourceCode))
       return variants.includes(true)
         ? true
         : variants.every((result) => result === false)
@@ -508,9 +554,10 @@ function documentationReturnAnnotation(node) {
       if (
         node.typeName.type === 'Identifier' &&
         (node.typeName.name === 'Promise' || node.typeName.name === 'PromiseLike') &&
-        node.typeArguments?.params[0]
+        node.typeArguments?.params[0] &&
+        isDocumentationBuiltin(node.typeName, sourceCode, 'type')
       )
-        return documentationReturnAnnotation(node.typeArguments.params[0])
+        return documentationReturnAnnotation(node.typeArguments.params[0], sourceCode)
       return undefined
     case 'TSBooleanKeyword':
     case 'TSBigIntKeyword':
@@ -539,15 +586,29 @@ function documentationReturnAnnotation(node) {
  *
  * @param {import('@typescript-eslint/types').TSESTree.Identifier} node - 表达式中的标识符
  * @param {import('eslint').SourceCode} sourceCode - 当前源码及变量作用域
+ * @param {'type' | 'value'} [namespace] - 查找 TypeScript 类型或运行时值绑定
  * @returns {boolean} 当前模块未为该名称定义其他绑定时返回 true
  */
-function isDocumentationBuiltin(node, sourceCode) {
+function isDocumentationBuiltin(node, sourceCode, namespace = 'value') {
   const reference = /** @type {import('estree').Identifier} */ (/** @type {unknown} */ (node))
   /** @type {import('eslint').Scope.Scope | null} */
   let scope = sourceCode.getScope(reference)
   while (scope) {
-    const variable = scope.set.get(node.name)
-    if (variable) return variable.defs.length === 0
+    const shadowed = scope.set.get(node.name)?.defs.some((definition) => {
+      if (namespace === 'type') {
+        return !('isTypeDefinition' in definition) || definition.isTypeDefinition === true
+      }
+      if (definition.type === 'ImportBinding') {
+        const { node: specifier, parent } = definition
+        if (
+          ('importKind' in parent && parent.importKind === 'type') ||
+          ('importKind' in specifier && specifier.importKind === 'type')
+        )
+          return false
+      }
+      return !('isVariableDefinition' in definition) || definition.isVariableDefinition === true
+    })
+    if (shadowed) return false
     scope = scope.upper
   }
   return true
@@ -594,14 +655,72 @@ function documentationValueExpression(node, sourceCode, unwrapPromise) {
         isDocumentationBuiltin(node.callee, sourceCode)
       ) {
         const fulfilledType = node.typeArguments?.params[0]
-        return fulfilledType ? documentationReturnAnnotation(fulfilledType) : undefined
+        return fulfilledType ? documentationReturnAnnotation(fulfilledType, sourceCode) : undefined
       }
       return unwrapPromise ? undefined : true
+    case 'CallExpression': {
+      const { callee } = node
+      if (
+        callee.type !== 'MemberExpression' ||
+        callee.object.type !== 'Identifier' ||
+        callee.object.name !== 'Promise' ||
+        !isDocumentationBuiltin(callee.object, sourceCode)
+      )
+        return undefined
+      const method = documentationMemberName({ key: callee.property, computed: callee.computed })
+      if (method === 'reject') return false
+      if (method !== 'resolve') return undefined
+      const argument = node.arguments[0]
+      if (!argument) return false
+      return argument.type === 'SpreadElement'
+        ? undefined
+        : documentationValueExpression(argument, sourceCode, true)
+    }
     case 'AwaitExpression':
       return documentationValueExpression(node.argument, sourceCode, true)
     case 'UnaryExpression':
       return node.operator !== 'void'
+    case 'LogicalExpression': {
+      const { left, operator, right } = node
+      const leftIsUndefined =
+        (left.type === 'UnaryExpression' && left.operator === 'void') ||
+        (left.type === 'Identifier' &&
+          left.name === 'undefined' &&
+          isDocumentationBuiltin(left, sourceCode))
+      if (left.type === 'Literal' || leftIsUndefined) {
+        const value = left.type === 'Literal' ? left.value : undefined
+        const useRight =
+          operator === '??' ? value == null : operator === '&&' ? Boolean(value) : !value
+        return documentationValueExpression(useRight ? right : left, sourceCode, unwrapPromise)
+      }
+      if (
+        left.type === 'NewExpression' ||
+        left.type === 'ObjectExpression' ||
+        left.type === 'ArrayExpression' ||
+        left.type === 'FunctionExpression' ||
+        left.type === 'ArrowFunctionExpression' ||
+        left.type === 'ClassExpression'
+      ) {
+        return documentationValueExpression(
+          operator === '&&' ? right : left,
+          sourceCode,
+          unwrapPromise,
+        )
+      }
+      const leftValue = documentationValueExpression(left, sourceCode, unwrapPromise)
+      const rightValue = documentationValueExpression(right, sourceCode, unwrapPromise)
+      if (rightValue === true && (leftValue === true || (operator !== '&&' && !unwrapPromise)))
+        return true
+      return undefined
+    }
     case 'ConditionalExpression': {
+      if (node.test.type === 'Literal') {
+        return documentationValueExpression(
+          node.test.value ? node.consequent : node.alternate,
+          sourceCode,
+          unwrapPromise,
+        )
+      }
       const consequent = documentationValueExpression(node.consequent, sourceCode, unwrapPromise)
       const alternate = documentationValueExpression(node.alternate, sourceCode, unwrapPromise)
       if (consequent === true || alternate === true) return true
@@ -619,11 +738,43 @@ function documentationValueExpression(node, sourceCode, unwrapPromise) {
     case 'TSAsExpression':
     case 'TSTypeAssertion':
       return (
-        documentationReturnAnnotation(node.typeAnnotation) ??
+        documentationReturnAnnotation(node.typeAnnotation, sourceCode) ??
         documentationValueExpression(node.expression, sourceCode, unwrapPromise)
       )
     default:
       return undefined
+  }
+}
+
+/**
+ * 判断当前语句能否继续执行同一块中的后续语句
+ *
+ * @param {DocumentationNode} node - 当前语句或代码块
+ * @returns {boolean} 可以确定无法执行后续语句时返回 true
+ */
+function documentationStatementStops(node) {
+  switch (node.type) {
+    case 'ReturnStatement':
+    case 'ThrowStatement':
+    case 'BreakStatement':
+    case 'ContinueStatement':
+      return true
+    case 'BlockStatement':
+      return node.body.some(documentationStatementStops)
+    case 'IfStatement':
+      if (node.test.type === 'Literal') {
+        const branch = node.test.value ? node.consequent : node.alternate
+        return Boolean(branch && documentationStatementStops(branch))
+      }
+      return Boolean(
+        node.alternate &&
+        documentationStatementStops(node.consequent) &&
+        documentationStatementStops(node.alternate),
+      )
+    case 'TryStatement':
+      return Boolean(node.finalizer && documentationStatementStops(node.finalizer))
+    default:
+      return false
   }
 }
 
@@ -647,26 +798,45 @@ function documentationBodyReturns(node, sourceCode, unwrapPromise) {
       return node.argument
         ? documentationValueExpression(node.argument, sourceCode, unwrapPromise)
         : false
-    default: {
-      const fields = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (node))
+    case 'BlockStatement': {
       let unknownValue = false
-      for (const key of sourceCode.visitorKeys[node.type] ?? []) {
-        const children = fields[key]
-        for (const child of Array.isArray(children) ? children : [children]) {
-          if (child && typeof child === 'object' && 'type' in child) {
-            const result = documentationBodyReturns(
-              /** @type {DocumentationNode} */ (child),
-              sourceCode,
-              unwrapPromise,
-            )
-            if (result === true) return true
-            if (result === undefined) unknownValue = true
-          }
-        }
+      for (const statement of node.body) {
+        const result = documentationBodyReturns(statement, sourceCode, unwrapPromise)
+        if (result === true) return true
+        if (result === undefined) unknownValue = true
+        if (documentationStatementStops(statement)) break
       }
       return unknownValue ? undefined : false
     }
+    case 'IfStatement':
+      if (node.test.type === 'Literal') {
+        const branch = node.test.value ? node.consequent : node.alternate
+        return branch ? documentationBodyReturns(branch, sourceCode, unwrapPromise) : false
+      }
+      break
+    case 'TryStatement':
+      if (node.finalizer && documentationStatementStops(node.finalizer)) {
+        return documentationBodyReturns(node.finalizer, sourceCode, unwrapPromise)
+      }
+      break
   }
+  const fields = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (node))
+  let unknownValue = false
+  for (const key of sourceCode.visitorKeys[node.type] ?? []) {
+    const children = fields[key]
+    for (const child of Array.isArray(children) ? children : [children]) {
+      if (child && typeof child === 'object' && 'type' in child) {
+        const result = documentationBodyReturns(
+          /** @type {DocumentationNode} */ (child),
+          sourceCode,
+          unwrapPromise,
+        )
+        if (result === true) return true
+        if (result === undefined) unknownValue = true
+      }
+    }
+  }
+  return unknownValue ? undefined : false
 }
 
 /**
@@ -690,6 +860,18 @@ function documentationReturnValue(node, sourceCode) {
 
   if ('generator' in node && node.generator) return true
 
+  const definedReturnType = 'returnType' in node ? node.returnType : undefined
+  const inferFromBody = () => {
+    if (!('body' in node) || !node.body || Array.isArray(node.body)) return undefined
+    const unwrapPromise = 'async' in node && node.async
+    return node.body.type === 'BlockStatement'
+      ? documentationBodyReturns(node.body, sourceCode, unwrapPromise)
+      : documentationValueExpression(node.body, sourceCode, unwrapPromise)
+  }
+  const fromBody = definedReturnType ? undefined : inferFromBody()
+  // TypeScript 的推断类型可能仍包含已被 finally 或常量分支屏蔽的值
+  if (fromBody === false) return false
+
   const services =
     /** @type {Partial<import('@typescript-eslint/typescript-estree').ParserServices>} */ (
       sourceCode.parserServices
@@ -709,17 +891,9 @@ function documentationReturnValue(node, sourceCode) {
     }
   }
 
-  if ('returnType' in node && node.returnType) {
-    const annotation = documentationReturnAnnotation(node.returnType)
-    if (annotation !== undefined) return annotation
-  }
-  if ('body' in node && node.body && !Array.isArray(node.body)) {
-    const unwrapPromise = 'async' in node && node.async
-    return node.body.type === 'BlockStatement'
-      ? documentationBodyReturns(node.body, sourceCode, unwrapPromise)
-      : documentationValueExpression(node.body, sourceCode, unwrapPromise)
-  }
-  return undefined
+  return definedReturnType
+    ? (documentationReturnAnnotation(definedReturnType, sourceCode) ?? inferFromBody())
+    : fromBody
 }
 
 /**
@@ -815,9 +989,7 @@ function checkSignatureDocumentation(context, callableNode, docComment) {
   if (hasReturnValue === true && returnTags.length === 0) report('JSDoc 缺少 @returns 返回值说明')
   if (hasReturnValue === false && returnTags.length > 0) report('无返回值的签名无需添加 @returns')
   if (returnTags.length > 1) report('JSDoc 重复添加 @returns')
-  if (
-    returnTags.some(({ text }) => !withoutDocumentationTagType(text).replace(/^-\s*/, '').trim())
-  ) {
+  if (returnTags.some(({ text }) => !documentationDescription(withoutDocumentationTagType(text)))) {
     report('JSDoc 的 @returns 缺少说明')
   }
 }
@@ -838,6 +1010,8 @@ function documentationMemberName({ key, computed }) {
   if (key.type === 'PrivateIdentifier') return '#' + key.name
   if (key.type === 'Literal' && (typeof key.value === 'string' || typeof key.value === 'number'))
     return String(key.value)
+  if (key.type === 'TemplateLiteral' && key.expressions.length === 0)
+    return key.quasis[0]?.value.cooked ?? undefined
 }
 
 /**
@@ -871,7 +1045,8 @@ function documentationCallableType(type) {
 }
 
 /**
- * @typedef {{ value: DocumentationNode; anchor: number }} CommonJsDocumentationExport
+ * @typedef {{ name?: string; value: DocumentationNode; anchor: number; accessor?: boolean }} CommonJsDocumentationExport
+ * @typedef {Map<string | undefined, CommonJsDocumentationExport[]>} CommonJsExportObject
  */
 
 /**
@@ -891,51 +1066,83 @@ function isDocumentationModuleExports(node, localNames) {
 }
 
 /**
+ * 读取可见的 CommonJS 导出声明
+ *
+ * @param {DocumentationNode} value - 最终赋入模块或别名的值
+ * @param {number} anchor - 赋值语句开头
+ * @returns {CommonJsExportObject} 以属性名索引的定义
+ */
+function documentationExportObject(value, anchor) {
+  if (value.type !== 'ObjectExpression') return new Map([[undefined, [{ value, anchor }]]])
+  /** @type {CommonJsExportObject} */
+  const properties = new Map()
+  for (const property of literalObjectProperties(value)) {
+    const name = documentationMemberName(property)
+    if (name === undefined) continue
+    const entries = properties.get(name) ?? []
+    entries.push({
+      name,
+      value: unwrapDocumentationExpression(property.value),
+      anchor: property.range[0],
+      accessor: property.kind !== 'init',
+    })
+    properties.set(name, entries)
+  }
+  return properties
+}
+
+/**
  * 找出由顶层静态赋值确定的 CommonJS 导出
  *
  * @param {import('@typescript-eslint/types').TSESTree.Program['body']} statements - 模块顶层语句
  * @param {Set<string>} localNames - 模块顶层的本地绑定
  */
 function commonJsDocumentationExports(statements, localNames) {
-  /** @type {Map<string | undefined, CommonJsDocumentationExport>} */
-  const exports = new Map()
-  let aliasesModule = !localNames.has('exports')
+  /** @type {CommonJsExportObject} */
+  let moduleExports = new Map()
+  const hasAlias = !localNames.has('exports')
+  let alias = hasAlias ? moduleExports : undefined
+
+  /**
+   * 查找声明中当前可定位的导出对象
+   *
+   * @param {DocumentationNode} node - 赋值表达式的对象或值
+   */
+  function reference(node) {
+    if (hasAlias && node.type === 'Identifier' && node.name === 'exports') return alias
+    if (isDocumentationModuleExports(node, localNames)) return moduleExports
+  }
+
   for (const statement of statements) {
     if (statement.type !== 'ExpressionStatement') continue
-    const assignment = statement.expression
-    if (assignment.type !== 'AssignmentExpression' || assignment.operator !== '=') continue
-    const { left, right } = assignment
-    const value = unwrapDocumentationExpression(right)
+    /** @type {{ target: DocumentationNode; object?: CommonJsExportObject }[]} */
+    const assignments = []
+    let value = unwrapDocumentationExpression(statement.expression)
+    while (value.type === 'AssignmentExpression' && value.operator === '=') {
+      const target = value.left
+      // 先确定赋值左侧引用，右侧可能重新绑定 module.exports 或 exports
+      const object = target.type === 'MemberExpression' ? reference(target.object) : undefined
+      assignments.push({ target, object })
+      value = unwrapDocumentationExpression(value.right)
+    }
 
-    if (isDocumentationModuleExports(left, localNames)) {
-      aliasesModule = false
-      exports.clear()
-      if (value.type !== 'ObjectExpression') {
-        exports.set(undefined, { value, anchor: statement.range[0] })
-        continue
-      }
-      for (const property of literalObjectProperties(value)) {
-        if (property.kind !== 'init') continue
-        const name = documentationMemberName(property)
-        if (name !== undefined) {
-          exports.set(name, {
-            value: unwrapDocumentationExpression(property.value),
-            anchor: property.range[0],
-          })
+    let assigned = reference(value)
+    for (const { target, object } of assignments.toReversed()) {
+      if (isDocumentationModuleExports(target, localNames)) {
+        assigned ??= documentationExportObject(value, statement.range[0])
+        moduleExports = assigned
+      } else if (hasAlias && target.type === 'Identifier' && target.name === 'exports') {
+        assigned ??= documentationExportObject(value, statement.range[0])
+        alias = assigned
+      } else if (object && target.type === 'MemberExpression') {
+        const name = documentationMemberName({ key: target.property, computed: target.computed })
+        if (name !== undefined && !object.get(name)?.some(({ accessor }) => accessor)) {
+          object.set(name, [{ name, value, anchor: statement.range[0] }])
         }
       }
-    } else if (left.type === 'Identifier' && left.name === 'exports') {
-      aliasesModule = !localNames.has('exports') && isDocumentationModuleExports(value, localNames)
-    } else if (
-      left.type === 'MemberExpression' &&
-      ((aliasesModule && left.object.type === 'Identifier' && left.object.name === 'exports') ||
-        isDocumentationModuleExports(left.object, localNames))
-    ) {
-      const name = documentationMemberName({ key: left.property, computed: left.computed })
-      if (name !== undefined) exports.set(name, { value, anchor: statement.range[0] })
     }
   }
-  return exports
+  return [...moduleExports.values()].flat()
 }
 
 /**
@@ -1085,16 +1292,13 @@ const jsdocRequiredRule = {
       const overloads = new Map()
       for (const member of members) {
         const anchors = [member.range[0]]
-        const declaredType =
-          'typeAnnotation' in member ? member.typeAnnotation?.typeAnnotation : undefined
         if (member.type === 'TSPropertySignature') {
+          const declaredType = member.typeAnnotation?.typeAnnotation
           const name = documentationMemberName(member) ?? sourceCode.text.slice(...member.key.range)
           const callable = documentationCallableType(declaredType)
           checkDeclarations([{ node: member, anchors, callable }], messageId, name)
-          if (declaredType) checkObjectType(declaredType, messageId)
         } else if (member.type === 'TSIndexSignature') {
           checkDeclarations([{ node: member, anchors }], messageId, '索引签名')
-          if (declaredType) checkObjectType(declaredType, messageId)
         } else {
           const staticName =
             member.type === 'TSMethodSignature' ? documentationMemberName(member) : undefined
@@ -1117,53 +1321,6 @@ const jsdocRequiredRule = {
       }
       for (const { name, declarations } of overloads.values()) {
         checkDeclarations(declarations, messageId, name)
-      }
-    }
-
-    /**
-     * 检查当前声明中的对象字面量类型
-     *
-     * @param {DocumentationNode} type - 类型别名或成员注解
-     * @param {string} messageId - 对象成员缺少说明时使用的诊断
-     */
-    function checkObjectType(type, messageId) {
-      switch (type.type) {
-        case 'TSTypeLiteral':
-          checkTypeMembers(type.members, messageId)
-          break
-        case 'TSIntersectionType':
-        case 'TSUnionType':
-          for (const item of type.types) checkObjectType(item, messageId)
-          break
-        case 'TSTupleType':
-          for (const item of type.elementTypes) checkObjectType(item, messageId)
-          break
-        case 'TSArrayType':
-        case 'TSNamedTupleMember':
-          checkObjectType(type.elementType, messageId)
-          break
-        case 'TSOptionalType':
-        case 'TSRestType':
-        case 'TSTypeOperator':
-        case 'TSMappedType':
-          if (type.typeAnnotation) checkObjectType(type.typeAnnotation, messageId)
-          break
-        case 'TSTypeReference':
-          for (const item of type.typeArguments?.params ?? []) checkObjectType(item, messageId)
-          break
-        case 'TSConditionalType':
-          checkObjectType(type.trueType, messageId)
-          checkObjectType(type.falseType, messageId)
-          break
-        case 'TSFunctionType':
-        case 'TSConstructorType':
-          for (const param of type.params) {
-            const binding = unwrapDocumentationParameter(param)
-            if ('typeAnnotation' in binding && binding.typeAnnotation?.type === 'TSTypeAnnotation')
-              checkObjectType(binding.typeAnnotation.typeAnnotation, messageId)
-          }
-          if (type.returnType) checkObjectType(type.returnType.typeAnnotation, messageId)
-          break
       }
     }
 
@@ -1279,7 +1436,26 @@ const jsdocRequiredRule = {
           'missingTypeAlias',
           node.id.name,
         )
-        checkObjectType(node.typeAnnotation, 'missingTypeMember')
+      },
+      /**
+       * 检查接口或类型别名内部显式写出的对象成员
+       *
+       * @param {import('estree').Node} syntaxNode - ESLint 访问到的对象类型
+       */
+      TSTypeLiteral(syntaxNode) {
+        const node = /** @type {import('@typescript-eslint/types').TSESTree.TSTypeLiteral} */ (
+          /** @type {unknown} */ (syntaxNode)
+        )
+        for (const parent of sourceCode.getAncestors(syntaxNode).toReversed()) {
+          if (String(parent.type) === 'TSInterfaceDeclaration') {
+            checkTypeMembers(node.members, 'missingInterfaceMember')
+            break
+          }
+          if (String(parent.type) === 'TSTypeAliasDeclaration') {
+            checkTypeMembers(node.members, 'missingTypeMember')
+            break
+          }
+        }
       },
       Program(program) {
         const script = /** @type {import('@typescript-eslint/types').TSESTree.Program} */ (
@@ -1295,33 +1471,57 @@ const jsdocRequiredRule = {
         const exports = new Set()
         /** @type {DocumentedBinding[]} */
         const anonymous = []
-        /** @type {Map<string, import('@typescript-eslint/types').TSESTree.ObjectExpression>} */
+        /** @type {Map<string, { node: import('@typescript-eslint/types').TSESTree.ObjectExpression; constant: boolean }>} */
         const objects = new Map()
+        /** @type {Map<string, { source: DocumentationNode; key: string }>} */
+        const extracted = new Map()
         const checkedObjects = new Set()
+        const checkedProperties = new Set()
 
         /**
-         * 收集导出对象中显式声明的可调用成员和同文件函数引用
+         * 跟随本模块的静态别名
+         *
+         * @param {string} name - 模块内的变量名
+         */
+        function resolveAlias(name) {
+          const seen = new Set()
+          while (!seen.has(name)) {
+            seen.add(name)
+            const next = aliases.get(name)
+            if (!next) break
+            name = next
+          }
+          return name
+        }
+
+        /**
+         * 收集公开对象属性上的函数定义或同文件引用
+         *
+         * @param {import('@typescript-eslint/types').TSESTree.Property} property - 已定位的导出属性
+         */
+        function addObjectProperty(property) {
+          if (checkedProperties.has(property)) return
+          checkedProperties.add(property)
+          const value = unwrapDocumentationExpression(property.value)
+          if (property.kind === 'init') {
+            if (value.type === 'Identifier') exports.add(value.name)
+            if (value.type === 'ObjectExpression') addObjectMembers(value)
+          }
+          const name =
+            documentationMemberName(property) ?? sourceCode.text.slice(...property.key.range)
+          const binding = documentationFunctionExpression(value, [property.range[0]], property.key)
+          if (binding) anonymous.push({ ...binding, name })
+        }
+
+        /**
+         * 收集导出对象中显式声明的可调用成员
          *
          * @param {import('@typescript-eslint/types').TSESTree.ObjectExpression} object - 导出对象
          */
         function addObjectMembers(object) {
           if (checkedObjects.has(object)) return
           checkedObjects.add(object)
-          for (const property of literalObjectProperties(object)) {
-            const value = unwrapDocumentationExpression(property.value)
-            if (property.kind === 'init') {
-              if (value.type === 'Identifier') exports.add(value.name)
-              if (value.type === 'ObjectExpression') addObjectMembers(value)
-            }
-            const name =
-              documentationMemberName(property) ?? sourceCode.text.slice(...property.key.range)
-            const binding = documentationFunctionExpression(
-              value,
-              [property.range[0]],
-              property.key,
-            )
-            if (binding) anonymous.push({ ...binding, name })
-          }
+          for (const property of literalObjectProperties(object)) addObjectProperty(property)
         }
 
         for (const statement of body) {
@@ -1353,12 +1553,23 @@ const jsdocRequiredRule = {
           if (!declaration) continue
           if (declaration.type === 'VariableDeclaration') {
             for (const { id, init } of declaration.declarations) {
-              if (id.type !== 'Identifier' || !init) continue
+              if (!init) continue
               const value = unwrapDocumentationExpression(init)
-              if (declaration.kind === 'const' && value.type === 'Identifier')
-                aliases.set(id.name, value.name)
-              else if (!vue && value.type === 'ObjectExpression') objects.set(id.name, value)
-              if (exported) exports.add(id.name)
+              const constant = declaration.kind === 'const'
+              if (id.type === 'Identifier') {
+                if (constant && value.type === 'Identifier') aliases.set(id.name, value.name)
+                else if (!vue && value.type === 'ObjectExpression')
+                  objects.set(id.name, { node: value, constant })
+                if (exported) exports.add(id.name)
+              } else if (!vue && constant && id.type === 'ObjectPattern') {
+                for (const property of id.properties) {
+                  if (property.type !== 'Property' || property.value.type !== 'Identifier') continue
+                  const key = documentationMemberName(property)
+                  if (key === undefined) continue
+                  extracted.set(property.value.name, { source: value, key })
+                  if (exported) exports.add(property.value.name)
+                }
+              }
             }
           } else if (exported && !vue && declaration.type === 'ObjectExpression') {
             addObjectMembers(declaration)
@@ -1383,7 +1594,7 @@ const jsdocRequiredRule = {
                 variables.filter(({ defs }) => defs.length > 0).map(({ name }) => name),
               ),
           )
-          for (const [name, { value, anchor }] of commonJsDocumentationExports(body, localNames)) {
+          for (const { name, value, anchor } of commonJsDocumentationExports(body, localNames)) {
             if (value.type === 'Identifier') exports.add(value.name)
             else if (value.type === 'ObjectExpression') addObjectMembers(value)
             else
@@ -1395,17 +1606,19 @@ const jsdocRequiredRule = {
 
         const resolved = new Set()
         for (const name of exports) {
-          let target = name
-          const seen = new Set()
-          while (!seen.has(target)) {
-            seen.add(target)
-            const next = aliases.get(target)
-            if (!next) break
-            target = next
-          }
+          const target = resolveAlias(name)
           if (bindings.has(target)) resolved.add(target)
           const object = objects.get(target)
-          if (object) addObjectMembers(object)
+          if (object) addObjectMembers(object.node)
+          const selection = extracted.get(target)
+          if (!selection) continue
+          const { source, key } = selection
+          const local =
+            source.type === 'Identifier' ? objects.get(resolveAlias(source.name)) : undefined
+          const member = literalObjectProperties(local?.constant ? local.node : source).find(
+            (property) => property.kind === 'init' && documentationMemberName(property) === key,
+          )
+          if (member) addObjectProperty(member)
         }
         const groups = [
           ...Array.from(resolved, (name) => bindings.get(name) ?? []),
@@ -1668,6 +1881,36 @@ function vueContractString(node) {
 }
 
 /**
+ * 读取直接字面量或作用域中一级 const 字面量的组件键
+ *
+ * @param {VueAst.Node} node - 运行时名称表达式
+ * @param {import('eslint').SourceCode} sourceCode - ESLint 解析后的脚本作用域
+ * @returns {string | undefined} 可以直接从声明确定的名称
+ */
+function vueRuntimeName(node, sourceCode) {
+  if (node.type !== 'Identifier') return vueContractString(node)
+  const occurrence = /** @type {import('estree').Identifier} */ (/** @type {unknown} */ (node))
+  /** @type {import('eslint').Scope.Scope | null} */
+  let scope = sourceCode.getScope(occurrence)
+  for (; scope; scope = scope.upper) {
+    const variable = scope.set.get(node.name)
+    if (!variable) continue
+    const [definition] = variable.defs
+    if (
+      variable.defs.length !== 1 ||
+      definition.type !== 'Variable' ||
+      definition.parent?.kind !== 'const' ||
+      definition.node.id.type !== 'Identifier' ||
+      !definition.node.init
+    )
+      return undefined
+
+    const value = /** @type {VueAst.Node} */ (/** @type {unknown} */ (definition.node.init))
+    return vueContractString(unwrapDocumentationExpression(value))
+  }
+}
+
+/**
  * 遍历运行时对象明确写出的属性，包括内联对象展开
  *
  * @param {VueAst.Node | undefined} shape - 运行时对象声明或调用参数
@@ -1679,7 +1922,15 @@ function* declaredObjectProperties(shape) {
   if (object.type !== 'ObjectExpression') return
   for (const member of object.properties) {
     if (member.type === 'SpreadElement') yield* declaredObjectProperties(member.argument)
-    else yield member
+    else if (
+      member.computed ||
+      member.shorthand ||
+      member.method ||
+      member.kind !== 'init' ||
+      documentationMemberName(member) !== '__proto__'
+    ) {
+      yield member
+    }
   }
 }
 
@@ -1687,13 +1938,18 @@ function* declaredObjectProperties(shape) {
  * 合并同名属性，保留最终可用的定义及配对访问器
  *
  * @param {DocumentationNode | undefined} shape - 可能为对象字面量的表达式
+ * @param {(node: VueAst.Node) => string | undefined} [computedName] - 额外解释计算键的语法
  * @returns {VueAst.Property[]} 按源码顺序排列的定义
  */
-function literalObjectProperties(shape) {
+function literalObjectProperties(shape, computedName) {
   /** @type {Map<string | VueAst.Property, VueAst.Property[]>} */
   const members = new Map()
   for (const member of declaredObjectProperties(shape)) {
-    const name = documentationMemberName(member) ?? vueContractString(member.key) ?? member
+    const name =
+      documentationMemberName(member) ??
+      vueContractString(member.key) ??
+      (member.computed ? computedName?.(member.key) : undefined) ??
+      member
     const accessors =
       member.kind === 'init'
         ? []
@@ -1701,6 +1957,35 @@ function literalObjectProperties(shape) {
     members.set(name, [...accessors, member])
   }
   return [...members.values()].flat().toSorted((first, second) => first.range[0] - second.range[0])
+}
+
+/**
+ * 读取运行时字面量中的组件契约名称及其声明位置
+ *
+ * @param {VueAst.Node} declaration - 运行时宏声明
+ * @param {import('eslint').SourceCode} sourceCode - ESLint 解析后的脚本作用域
+ * @returns {Generator<[string, VueAst.Node]>} 静态名称和对应节点
+ */
+function* vueRuntimeEntries(declaration, sourceCode) {
+  const value = unwrapDocumentationExpression(declaration)
+  if (value.type === 'ArrayExpression') {
+    for (const item of value.elements) {
+      if (item?.type === 'SpreadElement') {
+        const nested = unwrapDocumentationExpression(item.argument)
+        if (nested.type === 'ArrayExpression') yield* vueRuntimeEntries(nested, sourceCode)
+      } else if (item) {
+        const name = vueRuntimeName(item, sourceCode)
+        if (name !== undefined) yield [name, item]
+      }
+    }
+  } else if (value.type === 'ObjectExpression') {
+    for (const member of literalObjectProperties(value, (key) => vueRuntimeName(key, sourceCode))) {
+      const name =
+        documentationMemberName(member) ??
+        (member.computed ? vueRuntimeName(member.key, sourceCode) : undefined)
+      if (name !== undefined) yield [name, member]
+    }
+  }
 }
 
 /**
@@ -1745,23 +2030,14 @@ const jsdocVueContractRule = {
      */
     function checkRuntime(declaration, messageId) {
       if (!declaration) return
-      const value = unwrapDocumentationExpression(declaration)
-      if (value.type === 'ArrayExpression') {
-        for (const item of value.elements) {
-          if (item?.type === 'SpreadElement') {
-            const nested = unwrapDocumentationExpression(item.argument)
-            if (nested.type === 'ArrayExpression') checkRuntime(nested, messageId)
-          } else if (item) {
-            const name = vueContractString(item)
-            if (name !== undefined) reportMissing(item, messageId, name)
-          }
-        }
-      } else if (value.type === 'ObjectExpression') {
-        for (const member of literalObjectProperties(value)) {
-          const name = documentationMemberName(member) ?? vueContractString(member.key)
-          if (name !== undefined) reportMissing(member, messageId, name)
+      /** @type {Map<string, VueAst.Node>} */
+      const members = new Map()
+      for (const [name, node] of vueRuntimeEntries(declaration, sourceCode)) {
+        if (!members.has(name) || hasDocumentationSummary(sourceCode, node.range[0])) {
+          members.set(name, node)
         }
       }
+      for (const [name, node] of members) reportMissing(node, messageId, name)
     }
 
     /**
@@ -1866,13 +2142,9 @@ const jsdocVueContractRule = {
             checkTyped(call, localTypes, messageId)
           } else if (call.callee.name === 'defineModel') {
             const argument = call.arguments[0]
-            const first = argument && unwrapDocumentationExpression(argument)
-            const name = vueContractString(first)
-            if (name !== undefined) {
-              reportMissing(declaration, 'missingProp', name)
-            } else if (!first || first.type === 'ObjectExpression') {
-              reportMissing(declaration, 'missingProp', 'modelValue')
-            }
+            if (argument?.type === 'SpreadElement') return
+            const name = vueContractString(argument && unwrapDocumentationExpression(argument))
+            reportMissing(declaration, 'missingProp', name ?? 'modelValue')
           }
         }
 

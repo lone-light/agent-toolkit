@@ -600,6 +600,89 @@ export const makeLabel =
       )
     })
 
+    await context.test('追踪静态导出和接口签名内部的对象字段', async () => {
+      const regressions = [
+        {
+          file: 'src/DocumentationProbe.cjs',
+          source: `exports = module.exports = { load() {} }
+exports.reset = () => 0`,
+          expected: ['导出的函数 load', '导出的函数 reset'],
+        },
+        {
+          file: 'src/DocumentationProbe.cjs',
+          source: `module.exports = exports = { load() {} }
+exports.reset = () => 0`,
+          expected: ['导出的函数 load', '导出的函数 reset'],
+        },
+        {
+          file: 'src/DocumentationProbe.cjs',
+          source: `exports.load = () => 0
+module.exports = { discarded() {} }
+exports.ready = () => true
+module.exports = exports`,
+          expected: ['导出的函数 load', '导出的函数 ready'],
+        },
+        {
+          file: 'src/DocumentationProbe.cjs',
+          source: `const original = exports
+module.exports.detached = module.exports = { load() {} }
+original.stale = () => 0
+module.exports.state = 1`,
+          expected: ['导出的函数 load'],
+        },
+        {
+          file: 'src/DocumentationProbe.cjs',
+          source: `module.exports = {
+  get state() { return 1 },
+  set state(value) { void value },
+}
+module.exports.state = 2`,
+          expected: ['导出的函数 state', '导出的函数 state'],
+        },
+        {
+          file: 'src/FormatExample.ts',
+          source: `const api = { run() {}, internal() {} }
+const aliases = api
+const { run: publicRun } = aliases
+export { publicRun }
+export const { close } = { close() {} }`,
+          expected: ['导出的函数 run', '导出的函数 close'],
+        },
+        {
+          file: 'src/FormatExample.ts',
+          source: `/**
+ * 获取参数类型规定的字段
+ */
+type Factory<T extends { identifier: string }> = T
+/**
+ * 读取记录
+ */
+interface Records {
+  /**
+   * 查询指定记录
+   *
+   * @param query - 查询条件
+   * @returns 匹配的记录
+   */
+  find(query: { offset: number }): { title: string }
+}
+const privateOptions: { transient: boolean } = { transient: false }`,
+          expected: ['类型成员 identifier', '接口成员 offset', '接口成员 title'],
+        },
+      ]
+      for (const { file, source, expected } of regressions) {
+        const [result] = await eslint.lintText(source, { filePath: join(samples, file) })
+        assert.equal(result.fatalErrorCount, 0, JSON.stringify(result.messages))
+        assert.deepEqual(
+          result.messages
+            .filter(({ ruleId }) => ruleId?.startsWith('lonelight-docs/'))
+            .map(({ message }) => message.replace(' 缺少说明用途的 JSDoc', '')),
+          expected,
+          JSON.stringify(result.messages),
+        )
+      }
+    })
+
     await context.test('核对解构路径和明确的返回值，保留多句摘要及示例', async () => {
       const filePath = join(samples, 'src/FormatExample.ts')
       const source = `/**
@@ -664,6 +747,206 @@ export function clear() { return undefined }`
         assert(
           issues.some((message) => evidence.test(message)),
           JSON.stringify(issues),
+        )
+      }
+    })
+
+    await context.test('检查带类型的参数路径和可确定的返回结果', async () => {
+      const filePath = join(samples, 'src/FormatExample.ts')
+      const examples = [
+        {
+          source: `/**
+ * 读取查询主题
+ *
+ * @param options - 查询选项
+ * @param options.source - 可供查询的来源
+ */
+export function read({ topic }: { topic: string; source?: string }) { void topic }
+/**
+ * 读取区间下界
+ *
+ * @param range - 起止值
+ * @param range[1] - 区间上界
+ */
+export function start([min]: readonly [number, number]) { void min }
+/**
+ * 读取固定数量的坐标
+ *
+ * @param tuple - 两个坐标
+ * @param tuple[2] - 越界元素
+ */
+export function notify(tuple: [number, number]) { void tuple }`,
+          expected: ['JSDoc 的 @param tuple[2] 无法对应函数签名中的参数'],
+        },
+        {
+          source: `/**
+ * @summary 保存设置。
+ */
+export function save() {}
+/**
+ * 查询指定设置
+ *
+ * @param key - -
+ * @returns —
+ * @throws {Error} --
+ */
+export function read(key: string): string { return key }`,
+          expected: [
+            'JSDoc 的简短说明行末省略句号',
+            'JSDoc 的 @param key 缺少说明',
+            'JSDoc 的 @returns 缺少说明',
+            'JSDoc 的 @throws 应说明触发异常或拒绝的条件',
+          ],
+        },
+        {
+          source: `/**
+ * 执行快速分支
+ */
+export function choose() { return true ? undefined : 1 }
+/**
+ * 跳过关闭的功能
+ */
+export function skip() { if (false) return 1 }
+/**
+ * 从固定分支结束操作
+ */
+export function early() { if (true) return; return 1 }
+/**
+ * 从内部代码块结束操作
+ */
+export function block() { { return } return 1 }
+/**
+ * 结束这次操作
+ */
+export function finish() { try { return 1 } finally { return } }
+/**
+ * 返回确认结果
+ */
+export function confirm() { return Promise.resolve(1) }
+/**
+ * 等待操作完成
+ *
+ * @returns 完成信号
+ */
+export function wait() { return Promise.resolve() }`,
+          expected: ['JSDoc 缺少 @returns 返回值说明', '无返回值的签名无需添加 @returns'],
+        },
+      ]
+      for (const { source, expected } of examples) {
+        const [result] = await eslint.lintText(source, { filePath })
+        assert.equal(result.fatalErrorCount, 0, JSON.stringify(result.messages))
+        assert.deepEqual(
+          result.messages
+            .filter(({ ruleId }) => ruleId?.startsWith('lonelight-docs/'))
+            .map(({ message }) => message),
+          expected,
+          JSON.stringify(result.messages),
+        )
+      }
+    })
+
+    await context.test('识别短路返回值及同名 Promise 类型或构造函数', async () => {
+      const filePath = join(samples, 'src/FormatExample.ts')
+      const cases = [
+        {
+          source: `/**
+ * 获取访问令牌
+ */
+export function token() { return localStorage.getItem('access-token') || '' }
+/**
+ * 识别请求是否被取消
+ *
+ * @param error - 请求抛出的异常
+ */
+export const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError'`,
+          expected: [
+            [1, 'JSDoc 缺少 @returns 返回值说明'],
+            [5, 'JSDoc 缺少 @returns 返回值说明'],
+          ],
+        },
+        {
+          source: `/**
+ * 执行异步写入
+ */
+export async function save() { return new Promise<void>((resolve) => resolve()) }
+/**
+ * 复用外部调用结果或写入默认值
+ *
+ * @param value - 调用方提供的值
+ */
+export async function saveUnknown(value: unknown) { return value && 'fallback' }
+declare function loadOpaqueValue(): any
+/**
+ * 保留外部调用的异步结果
+ */
+export async function saveOpaque() { return loadOpaqueValue() || '' }
+/**
+ * 完成无返回值的操作
+ */
+export function finish() { return false || void console.log('done') }`,
+          expected: [],
+        },
+        {
+          source: `/**
+ * 记录本地响应的数据结构
+ */
+type Promise<T> = {
+  /**
+   * 响应中的结果
+   */
+  value: T
+}
+/**
+ * 生成一个空值响应
+ *
+ * @returns 本地响应对象
+ */
+export function result(): Promise<void> { return { value: undefined } }
+/**
+ * 执行不返回数据的标准异步任务
+ */
+export function enqueue() { return new Promise<void>((resolve) => resolve()) }`,
+          expected: [],
+        },
+        {
+          source: `import type { Promise } from './Result'
+/**
+ * 构造结果对象
+ *
+ * @returns 返回结果对象
+ */
+export function result(): Promise<void> { return { value: undefined } }`,
+          expected: [],
+        },
+        {
+          source: `/**
+ * 表示应用中的结果容器
+ */
+class Promise<T> {}
+/**
+ * 创建一个空容器
+ */
+export function result() { return new Promise<void>() }`,
+          expected: [[5, 'JSDoc 缺少 @returns 返回值说明']],
+        },
+        {
+          source: `import { Promise } from './Result'
+/**
+ * 创建导入的结果容器
+ */
+export function result() { return new Promise<void>() }`,
+          expected: [[2, 'JSDoc 缺少 @returns 返回值说明']],
+        },
+      ]
+      for (const { source, expected } of cases) {
+        const [result] = await eslint.lintText(source, { filePath })
+        assert.equal(result.fatalErrorCount, 0, JSON.stringify(result.messages))
+        assert.deepEqual(
+          result.messages
+            .filter(({ ruleId }) => ruleId?.startsWith('lonelight-docs/'))
+            .map(({ line, message }) => [line, message]),
+          expected,
+          JSON.stringify(result.messages),
         )
       }
     })
@@ -886,6 +1169,56 @@ interface Emits<EventName extends string> {
 const emit = defineEmits<Emits<ExternalEvent>>()`,
           expected: [],
           expectedRequired: ['missingTypeAlias', 'missingInterface', 'missingInterfaceMember'],
+        },
+        {
+          script: `import { options } from './options'
+const draft = defineModel<string>(options)
+const emit = defineEmits(['saved', ...['saved']])`,
+          expected: [
+            ['missingProp', 'modelValue'],
+            ['missingEmit', 'saved'],
+          ],
+        },
+        {
+          script: `import { options } from './options'
+/**
+ * 传给编辑器的草稿
+ */
+const draft = defineModel<string>(options)
+const emit = defineEmits([
+  'saved',
+  ...[
+    /**
+     * 草稿保存后通知父组件
+     */
+    'saved',
+  ],
+])`,
+          expected: [],
+        },
+        {
+          script: `const props = defineProps({ __proto__: null, title: String })
+const emit = defineEmits({ ['__proto__']: null })`,
+          expected: [
+            ['missingProp', 'title'],
+            ['missingEmit', '__proto__'],
+          ],
+        },
+        {
+          script: `const TITLE = 'title'
+const SAVED = 'saved'
+const props = defineProps({
+  /**
+   * 初始版本的标题定义
+   */
+  title: String,
+  [TITLE]: Number,
+})
+const emit = defineEmits([SAVED])`,
+          expected: [
+            ['missingProp', 'title'],
+            ['missingEmit', 'saved'],
+          ],
         },
         {
           script: `const emit = defineEmits<(event: 'saved', count: number) => void>()`,

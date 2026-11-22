@@ -39,6 +39,21 @@ export const cases = {
   'src/components/UnhandledRequest.vue': {
     project: ['@typescript-eslint/no-floating-promises'],
   },
+  'src/DocumentationIssues.ts': {
+    base: [
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/required',
+      'lonelight-docs/layout',
+    ],
+  },
+  'src/components/UndocumentedActions.vue': {
+    base: ['lonelight-docs/required', 'lonelight-docs/required'],
+  },
   'src/FormatExample.ts': {},
   'src/api/status.ts': {},
   'src/components/DraftEditor.vue': {},

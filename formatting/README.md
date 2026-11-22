@@ -66,7 +66,7 @@ ESLint 10 支持 Node.js `^20.19.0 || ^22.13.0 || >=24`。模板忽略包根目�
 
 ## JavaScript 和 TypeScript 注释
 
-- `lonelight-docs/required` 检查 `src/` 下 JS、TS 和 Vue 脚本中的导出函数、类、类字段、类方法、TS 接口和类型别名。导出对象中的函数成员也在定义处写说明。接口成员和类型别名中写出的对象成员各自写 JSDoc。构造器、访问器、静态和私有成员也要写说明。同组重载至少写一段说明，各段标签按所在签名核对。显式 `override` 的类方法可以沿用父方法文档。类型声明文件和测试文件排除在缺失检查范围外。
+- `lonelight-docs/required` 检查 `src/` 下 JS、TS 和 Vue 脚本中的导出函数、类、类字段、类方法、TS 接口和类型别名。静态可定位的 ESM 和 CommonJS 导出函数在定义处写说明，包括导出对象的函数成员。接口和类型别名内显式声明的对象成员各自写 JSDoc。构造器、访问器、静态和私有成员也要写说明。同组重载至少写一段说明，各段标签按所在签名核对。显式 `override` 的类方法可以沿用父方法文档。类型声明文件和测试文件排除在缺失检查范围外。
 - 只写一行说明的 JSDoc 固定三行。`lonelight-docs/layout` 检查 `/**`、`*/` 是否各占一行，非空正文行是否以 `*` 开头。`@type`、`@typedef` 和 `@license` 等单行类型标注、工具指令及许可声明可以保留单行。
 - 标签按 `@param`、`@returns`、`@throws` 排列，正文与标签之间空一行。每个标签及其说明占一行，简短摘要和标签说明省略行尾句号。`@throws` 写明抛错或 Promise 拒绝的条件，扫描检查已有标签的说明。
 - 对可调用声明，逐个参数写 `@param 名称 - 说明`，检查参数名、顺序、缺漏、重复和说明。TS 构造器参数属性用构造器的 `@param` 说明。解构参数的根标签按签名位置对应，子标签可记录能定位的属性。
@@ -83,7 +83,7 @@ ESLint 10 支持 Node.js `^20.19.0 || ^22.13.0 || >=24`。模板忽略包根目�
 
 ## Vue 组件注释
 
-- `lonelight-docs/vue-contract` 检查 `src/` 下 `<script setup>` 中可定位的 Prop 和事件声明。每个 Prop 和事件各写一段 JSDoc，字段是否有默认值遵循同一条规则。`withDefaults` 的说明写在 Prop 声明处，事件说明写在 `defineEmits` 的声明处。支持从本文件的类型和运行时字面量定位声明。`defineModel` 的 Prop 和自动生成的更新事件共用宏定义处的说明。
+- `lonelight-docs/vue-contract` 检查 `src/` 下 `<script setup>` 中可定位的 Prop 和事件声明。每个 Prop 和事件各写一段 JSDoc，字段是否有默认值遵循同一条规则。`withDefaults` 的说明写在 Prop 声明处，事件说明写在 `defineEmits` 的声明处。支持从本文件的类型、运行时字面量和直接绑定字面量的常量定位声明。`defineModel` 的 Prop 和自动生成的更新事件共用宏定义处的说明。
 - `lonelight-docs/required` 检查组件脚本中有名字的函数，包括函数声明、赋给变量的箭头函数和函数表达式。组件模板使用的内部函数也在定义处写说明，参数和返回值沿用 JS、TS 规则。
 - 对外暴露的函数先单独定义，再用 `defineExpose({ focus })` 引用。JSDoc 写在 `focus` 的定义处一次。
 
